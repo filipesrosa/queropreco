@@ -1,2 +1,15 @@
 @import "tailwindcss";
 @source "../";
+
+@theme {
+  --color-brand: #E8420A;
+  --color-brand-light: #FDE8E0;
+  --color-brand-dark: #A82E05;
+  --color-ink: #1A1A1A;
+  --color-neutral: #F5F4F2;
+}
+
+/* html5-qrcode injects a canvas for frame processing — hide it */
+#qr-reader-container canvas {
+  display: none !important;
+}

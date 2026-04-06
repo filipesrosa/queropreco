@@ -36,6 +36,10 @@ export function QrScanner({ onScan, onError }: Props) {
           },
           undefined
         )
+        // Component may have unmounted while start() was in progress — stop immediately
+        if (stoppedRef.current) {
+          scanner.stop().catch(() => {})
+        }
       } catch (err) {
         onError?.(err instanceof Error ? err.message : 'Falha ao acessar câmera')
       }

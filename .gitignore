@@ -21,3 +21,5 @@ out/
 
 # Prisma
 prisma/migrations/dev.db
+
+.playwright-mcp

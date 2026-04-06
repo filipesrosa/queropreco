@@ -14,6 +14,7 @@ function ReviewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const url = searchParams.get('url') ?? ''
+  const barcode = searchParams.get('barcode') ?? ''
 
   const [receipt, setReceipt] = useState<NFCeReceipt | null>(null)
   const [original, setOriginal] = useState('')
@@ -23,17 +24,20 @@ function ReviewContent() {
   const [editing, setEditing] = useState(false)
 
   useEffect(() => {
-    if (!url) { router.replace('/'); return }
+    if (!url && !barcode) { router.replace('/'); return }
 
-    fetch(`${API}/bills/capture`, {
+    const endpoint = barcode ? `${API}/bills/barcode` : `${API}/bills/capture`
+    const body = barcode ? { accessKey: barcode } : { url }
+
+    fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify(body),
     })
       .then(async (res) => {
         if (!res.ok) {
-          const body = await res.json()
-          throw new Error(body.error ?? `Erro ${res.status}`)
+          const data = await res.json()
+          throw new Error(data.error ?? `Erro ${res.status}`)
         }
         return res.json()
       })
@@ -43,7 +47,7 @@ function ReviewContent() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [url, router])
+  }, [url, barcode, router])
 
   const hasChanges = receipt !== null && JSON.stringify(receipt) !== original
 
@@ -93,12 +97,12 @@ function ReviewContent() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex flex-col">
+      <main className="min-h-screen bg-neutral flex flex-col">
         <Header onBack={() => router.back()} />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center space-y-3">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-gray-500 text-sm">Carregando nota fiscal...</p>
+            <div className="w-10 h-10 border-[3px] border-brand border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-ink/45 text-sm">Carregando nota fiscal...</p>
           </div>
         </div>
       </main>
@@ -107,7 +111,7 @@ function ReviewContent() {
 
   if (error || !receipt) {
     return (
-      <main className="min-h-screen bg-gray-50 flex flex-col">
+      <main className="min-h-screen bg-neutral flex flex-col">
         <Header onBack={() => router.back()} />
         <div className="flex-1 flex items-center justify-center px-6">
           <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-sm w-full">
@@ -115,7 +119,7 @@ function ReviewContent() {
             <p className="text-red-500 text-sm mt-1">{error}</p>
             <button
               onClick={() => router.back()}
-              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700"
+              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-colors"
             >
               Tentar novamente
             </button>
@@ -126,43 +130,43 @@ function ReviewContent() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex flex-col">
+    <main className="min-h-screen bg-neutral flex flex-col">
       <Header onBack={() => router.back()} />
 
       <div className="flex-1 overflow-y-auto pb-32">
         {/* Establishment */}
-        <section className="bg-white border-b border-gray-100 px-5 py-4">
+        <section className="bg-white border-b border-ink/6 px-5 py-4">
           {editing ? (
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide">Estabelecimento</label>
+              <label className="block text-[11px] font-semibold text-ink/35 uppercase tracking-widest">Estabelecimento</label>
               <input
                 value={receipt.establishment.name}
                 onChange={(e) => updateEstablishment('name', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
                 placeholder="Nome"
               />
               <input
                 value={receipt.establishment.address}
                 onChange={(e) => updateEstablishment('address', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
                 placeholder="Endereço"
               />
             </div>
           ) : (
             <div>
-              <p className="font-semibold text-gray-900">{receipt.establishment.name || '—'}</p>
-              <p className="text-xs text-gray-500 mt-0.5">CNPJ: {receipt.establishment.cnpj}</p>
+              <p className="font-semibold text-ink">{receipt.establishment.name || '—'}</p>
+              <p className="text-xs text-ink/40 mt-0.5">CNPJ: {receipt.establishment.cnpj}</p>
               {receipt.establishment.address && (
-                <p className="text-xs text-gray-500">{receipt.establishment.address}</p>
+                <p className="text-xs text-ink/40">{receipt.establishment.address}</p>
               )}
             </div>
           )}
         </section>
 
         {/* Invoice info */}
-        <section className="px-5 py-3 bg-gray-50 border-b border-gray-100">
-          <div className="flex gap-4 text-xs text-gray-500">
-            <span>Nº {receipt.invoice.number} • Série {receipt.invoice.series}</span>
+        <section className="px-5 py-3 bg-neutral border-b border-ink/6">
+          <div className="flex gap-4 text-xs text-ink/40">
+            <span>Nº {receipt.invoice.number} · Série {receipt.invoice.series}</span>
             <span>
               {new Date(receipt.invoice.issuedAt).toLocaleDateString('pt-BR', {
                 day: '2-digit', month: '2-digit', year: 'numeric',
@@ -170,49 +174,58 @@ function ReviewContent() {
             </span>
           </div>
           {receipt.invoice.accessKey && (
-            <p className="text-xs text-gray-400 mt-1 break-all">{receipt.invoice.accessKey}</p>
+            <p className="text-[10px] text-ink/30 mt-1 break-all font-mono">{receipt.invoice.accessKey}</p>
           )}
         </section>
 
         {/* Items */}
-        <section className="bg-white mt-2 border-y border-gray-100">
-          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-800">
-              Itens <span className="text-gray-400 font-normal text-sm">({receipt.items.length})</span>
+        <section className="bg-white mt-2 border-y border-ink/6">
+          <div className="px-5 py-3 border-b border-ink/6 flex items-center justify-between">
+            <h3 className="font-semibold text-ink">
+              Itens{' '}
+              <span className="text-ink/35 font-normal text-sm">({receipt.items.length})</span>
             </h3>
           </div>
-          <ul className="divide-y divide-gray-100">
+          {receipt.items.length === 0 && (
+            <div className="px-5 py-4 bg-amber-50 border-b border-amber-100 text-center">
+              <p className="text-amber-700 text-sm font-semibold">Itens não disponíveis</p>
+              <p className="text-amber-600 text-xs mt-0.5">
+                A nota foi capturada via código de barras. Use o QR Code para obter os itens automaticamente, ou adicione-os manualmente abaixo.
+              </p>
+            </div>
+          )}
+          <ul className="divide-y divide-ink/5">
             {receipt.items.map((item, i) => (
               <li key={i} className="px-5 py-3">
                 <div className="flex justify-between items-start gap-2">
-                  <p className="text-sm text-gray-800 flex-1 leading-snug">{item.description}</p>
-                  <p className="text-sm font-medium text-gray-900 shrink-0">{fmt(item.totalPrice)}</p>
+                  <p className="text-sm text-ink flex-1 leading-snug">{item.description}</p>
+                  <p className="text-sm font-semibold text-ink shrink-0">{fmt(item.totalPrice)}</p>
                 </div>
                 {editing ? (
-                  <div className="mt-2 flex gap-2">
+                  <div className="mt-2.5 flex gap-2">
                     <div className="flex-1">
-                      <label className="text-xs text-gray-500">Qtd</label>
+                      <label className="text-[11px] text-ink/40 font-medium">Qtd</label>
                       <input
                         type="number"
                         step="0.001"
                         value={item.quantity}
                         onChange={(e) => updateItem(i, 'quantity', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full border border-ink/15 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="text-xs text-gray-500">Preço unit.</label>
+                      <label className="text-[11px] text-ink/40 font-medium">Preço unit.</label>
                       <input
                         type="number"
                         step="0.01"
                         value={item.unitPrice}
                         onChange={(e) => updateItem(i, 'unitPrice', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full border border-ink/15 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
                       />
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-ink/35 mt-0.5">
                     {item.quantity} {item.unit} × {fmt(item.unitPrice)}
                   </p>
                 )}
@@ -222,7 +235,7 @@ function ReviewContent() {
         </section>
 
         {/* Payment summary */}
-        <section className="bg-white mt-2 border-y border-gray-100 px-5 py-4 space-y-1.5">
+        <section className="bg-white mt-2 border-y border-ink/6 px-5 py-4 space-y-2">
           <Row label="Subtotal" value={fmt(receipt.payment.totalAmount)} bold />
           <Row label="Forma de pagamento" value={receipt.payment.method} />
           {receipt.taxes.totalTaxes > 0 && (
@@ -235,8 +248,8 @@ function ReviewContent() {
 
         {/* Notes */}
         {(receipt.notes || editing) && (
-          <section className="bg-white mt-2 border-y border-gray-100 px-5 py-4">
-            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-2">
+          <section className="bg-white mt-2 border-y border-ink/6 px-5 py-4">
+            <label className="text-[11px] font-semibold text-ink/35 uppercase tracking-widest block mb-2.5">
               Observações
             </label>
             {editing ? (
@@ -244,36 +257,36 @@ function ReviewContent() {
                 value={receipt.notes ?? ''}
                 onChange={(e) => updateNotes(e.target.value)}
                 rows={3}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all resize-none"
               />
             ) : (
-              <p className="text-sm text-gray-600">{receipt.notes}</p>
+              <p className="text-sm text-ink/60">{receipt.notes}</p>
             )}
           </section>
         )}
       </div>
 
       {/* Bottom action bar */}
-      <div className="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 px-5 py-4 flex gap-3 safe-area-pb">
+      <div className="fixed bottom-0 inset-x-0 bg-white border-t border-ink/8 px-5 py-4 flex gap-3 safe-area-pb">
         <button
           onClick={() => setEditing((v) => !v)}
-          className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors"
+          className="flex-1 py-3 rounded-xl border border-ink/15 text-ink/70 font-semibold text-sm hover:bg-ink/3 transition-colors"
         >
-          {editing ? 'Cancelar edição' : 'Editar'}
+          {editing ? 'Cancelar' : 'Editar'}
         </button>
 
         {hasChanges ? (
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="flex-1 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand-dark disabled:opacity-40 transition-colors shadow-sm"
           >
             {saving ? 'Salvando...' : 'Salvar alterações'}
           </button>
         ) : (
           <button
             onClick={() => router.push('/')}
-            className="flex-1 py-3 rounded-xl bg-green-600 text-white font-semibold text-sm hover:bg-green-700 transition-colors"
+            className="flex-1 py-3 rounded-xl bg-brand text-white font-semibold text-sm hover:bg-brand-dark transition-colors shadow-sm"
           >
             Confirmar ✓
           </button>
@@ -285,13 +298,13 @@ function ReviewContent() {
 
 function Header({ onBack }: { onBack: () => void }) {
   return (
-    <header className="bg-white border-b border-gray-200 px-4 py-4 flex items-center gap-3 shrink-0">
-      <button onClick={onBack} className="p-1 rounded-lg hover:bg-gray-100">
-        <svg className="w-5 h-5 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <header className="bg-white border-b border-ink/6 px-4 py-4 flex items-center gap-3 shrink-0">
+      <button onClick={onBack} className="p-1.5 rounded-xl hover:bg-ink/5 transition-colors">
+        <svg className="w-5 h-5 text-ink/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
         </svg>
       </button>
-      <h1 className="text-base font-semibold text-gray-900">Revisão da Nota</h1>
+      <h1 className="text-base font-semibold text-ink">Revisão da Nota</h1>
     </header>
   )
 }
@@ -299,8 +312,8 @@ function Header({ onBack }: { onBack: () => void }) {
 function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
   return (
     <div className="flex justify-between items-center">
-      <span className={`text-sm ${bold ? 'font-semibold text-gray-900' : 'text-gray-500'}`}>{label}</span>
-      <span className={`text-sm ${bold ? 'font-bold text-gray-900' : 'text-gray-700'}`}>{value}</span>
+      <span className={`text-sm ${bold ? 'font-semibold text-ink' : 'text-ink/45'}`}>{label}</span>
+      <span className={`text-sm ${bold ? 'font-bold text-ink' : 'text-ink/70'}`}>{value}</span>
     </div>
   )
 }
