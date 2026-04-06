@@ -10,14 +10,15 @@ interface Props {
 export function QrScanner({ onScan, onError }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scannerRef = useRef<import('html5-qrcode').Html5Qrcode | null>(null)
+  const stoppedRef = useRef(false)
 
   useEffect(() => {
-    let stopped = false
+    stoppedRef.current = false
 
     async function start() {
       const { Html5Qrcode } = await import('html5-qrcode')
 
-      if (!containerRef.current || stopped) return
+      if (!containerRef.current || stoppedRef.current) return
 
       const scanner = new Html5Qrcode('qr-reader-container')
       scannerRef.current = scanner
@@ -27,8 +28,11 @@ export function QrScanner({ onScan, onError }: Props) {
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 260, height: 260 } },
           (text) => {
-            onScan(text)
-            scanner.stop().catch(() => {})
+            if (stoppedRef.current) return
+            stoppedRef.current = true
+            scanner.stop()
+              .catch(() => {})
+              .finally(() => onScan(text))
           },
           undefined
         )
@@ -40,8 +44,10 @@ export function QrScanner({ onScan, onError }: Props) {
     start()
 
     return () => {
-      stopped = true
-      scannerRef.current?.stop().catch(() => {})
+      if (!stoppedRef.current) {
+        stoppedRef.current = true
+        scannerRef.current?.stop().catch(() => {})
+      }
     }
   }, [onScan, onError])
 
