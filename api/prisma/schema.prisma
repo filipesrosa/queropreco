@@ -1,0 +1,107 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Establishment {
+  id        String   @id @default(cuid())
+  name      String
+  cnpj      String   @unique
+  address   String
+  website   String?
+  bills     Bill[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("establishments")
+}
+
+model Bill {
+  id              String        @id @default(cuid())
+  establishmentId String
+  establishment   Establishment @relation(fields: [establishmentId], references: [id])
+  invoice         Invoice?
+  payment         Payment?
+  taxes           Taxes?
+  items           Item[]
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("bills")
+}
+
+model Invoice {
+  id                    String   @id @default(cuid())
+  billId                String   @unique
+  bill                  Bill     @relation(fields: [billId], references: [id])
+  number                String
+  series                String
+  issuedAt              DateTime
+  capturedAt            DateTime
+  accessKey             String   @unique
+  authorizationProtocol String
+  environment           String
+  xmlVersion            String
+  xsltVersion           String
+  type                  String
+  via                   String
+  consumer              String
+  operator              String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("invoices")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  billId      String   @unique
+  bill        Bill     @relation(fields: [billId], references: [id])
+  totalItems  Int
+  totalAmount Decimal  @db.Decimal(10, 2)
+  amountPaid  Decimal  @db.Decimal(10, 2)
+  change      Decimal  @db.Decimal(10, 2)
+  method      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("payments")
+}
+
+model Taxes {
+  id            String   @id @default(cuid())
+  billId        String   @unique
+  bill          Bill     @relation(fields: [billId], references: [id])
+  totalTaxes    Decimal  @db.Decimal(10, 2)
+  taxPercentage Decimal  @db.Decimal(5, 2)
+  taxSource     String
+  legalBasis    String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("taxes")
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  billId      String
+  bill        Bill     @relation(fields: [billId], references: [id])
+  code        String
+  description String
+  quantity    Decimal  @db.Decimal(10, 3)
+  unit        String
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  totalPrice  Decimal  @db.Decimal(10, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("items")
+}
