@@ -19,7 +19,7 @@ function parseDate(s: string): string | null {
 // ── Access key decoder ─────────────────────────────────────────────────────────
 // key structure (44 digits): cUF(2) AAMM(4) CNPJ(14) mod(2) serie(3) nNF(9) tpEmis(1) cNF(8) cDV(1)
 
-interface KeyData {
+export interface KeyData {
   accessKey: string
   cnpj: string
   series: string
@@ -27,7 +27,7 @@ interface KeyData {
   issuedAt: string | null
 }
 
-function decodeAccessKey(raw: string): KeyData {
+export function decodeAccessKey(raw: string): KeyData {
   const ak = raw.replace(/\D/g, '').substring(0, 44)
   const aamm    = ak.substring(2, 6)
   const cnpjRaw = ak.substring(6, 20)

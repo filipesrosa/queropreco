@@ -17,16 +17,51 @@ export async function billsRoutes(app: FastifyInstance) {
     }
   })
 
-  // GET /bills - list all bills
-  app.get('/bills', async (_request, reply) => {
-    const bills = await prisma.bill.findMany({
-      include: { invoice: true, payment: true, taxes: true, items: true, establishment: true },
-      orderBy: { createdAt: 'desc' },
+  // GET /bills - list bills with optional date filter and pagination
+  app.get<{
+    Querystring: { from?: string; to?: string; page?: string; limit?: string }
+  }>('/bills', async (request, reply) => {
+    const { from, to, page = '1', limit = '10' } = request.query
+
+    const pageNum = Math.max(1, parseInt(page) || 1)
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 10))
+    const skip = (pageNum - 1) * limitNum
+
+    const issuedAtFilter: { gte?: Date; lte?: Date } = {}
+    if (from) issuedAtFilter.gte = new Date(from)
+    if (to) {
+      const end = new Date(to)
+      end.setHours(23, 59, 59, 999)
+      issuedAtFilter.lte = end
+    }
+
+    const where = Object.keys(issuedAtFilter).length > 0
+      ? { invoice: { issuedAt: issuedAtFilter } }
+      : {}
+
+    const [bills, total] = await Promise.all([
+      prisma.bill.findMany({
+        where,
+        include: { invoice: true, payment: true, establishment: true },
+        orderBy: { invoice: { issuedAt: 'desc' } },
+        skip,
+        take: limitNum,
+      }),
+      prisma.bill.count({ where }),
+    ])
+
+    return reply.send({
+      data: bills,
+      meta: {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+      },
     })
-    return reply.send({ data: bills })
   })
 
-  // GET /bills/:id - get a single bill
+  // GET /bills/:id - get a single bill with all relations
   app.get<{ Params: { id: string } }>('/bills/:id', async (request, reply) => {
     const { id } = request.params
 
