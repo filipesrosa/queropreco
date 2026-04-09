@@ -105,3 +105,21 @@ model Item {
 
   @@map("items")
 }
+
+model RequestLog {
+  id         String   @id @default(cuid())
+  sessionId  String
+  ipAddress  String?
+  userAgent  String?
+  path       String
+  method     String
+  city       String?
+  region     String?
+  country    String?
+  geoFetched Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("request_logs")
+}

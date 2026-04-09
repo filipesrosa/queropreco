@@ -10,6 +10,13 @@ function fmt(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function sessionHeaders(): HeadersInit {
+  const id = typeof window !== 'undefined'
+    ? (localStorage.getItem('qp_session_id') ?? '')
+    : ''
+  return { 'Content-Type': 'application/json', 'X-Session-Id': id }
+}
+
 function ReviewContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -31,7 +38,7 @@ function ReviewContent() {
 
     fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: sessionHeaders(),
       body: JSON.stringify(body),
     })
       .then(async (res) => {
@@ -57,7 +64,7 @@ function ReviewContent() {
     try {
       const res = await fetch(`${API}/bills`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: sessionHeaders(),
         body: JSON.stringify(receipt),
       })
       if (!res.ok) throw new Error('Falha ao salvar')

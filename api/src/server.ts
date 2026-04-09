@@ -3,6 +3,7 @@ import cors from '@fastify/cors'
 import { billsRoutes } from './routes/bills.js'
 import { captureRoutes } from './routes/capture.js'
 import { nfpRoutes } from './routes/nfp.js'
+import { prisma } from './lib/prisma.js'
 
 const app = Fastify({
   logger: {
@@ -13,9 +14,43 @@ const app = Fastify({
   },
 })
 
+async function enrichGeo(logId: string, ip: string | null) {
+  if (!ip || ip === '127.0.0.1' || ip === '::1') return
+  try {
+    const res = await fetch(`http://ip-api.com/json/${ip}?fields=city,regionName,country,status`)
+    const data = await res.json() as { status: string; city?: string; regionName?: string; country?: string }
+    if (data.status !== 'success') return
+    await prisma.requestLog.update({
+      where: { id: logId },
+      data: { city: data.city, region: data.regionName, country: data.country, geoFetched: true },
+    })
+  } catch {}
+}
+
 async function bootstrap() {
   await app.register(cors, {
     origin: process.env.CORS_ORIGIN ?? '*',
+  })
+
+  app.addHook('onRequest', async (request) => {
+    const sessionId = request.headers['x-session-id'] as string | undefined
+    if (!sessionId) return
+
+    const ip =
+      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
+      request.ip
+
+    prisma.requestLog.create({
+      data: {
+        sessionId,
+        ipAddress: ip,
+        userAgent: request.headers['user-agent'] ?? null,
+        path: request.url,
+        method: request.method,
+      },
+    })
+      .then((log) => enrichGeo(log.id, ip))
+      .catch(() => {})
   })
 
   await app.register(captureRoutes)
