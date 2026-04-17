@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs ls *)",
+      "Bash(xargs -I{} sh -c 'jq -r \"select\\(.type==\\\\\"assistant\\\\\"\\) | .message.content[]? | select\\(.type==\\\\\"tool_use\\\\\" and .name==\\\\\"Bash\\\\\"\\) | .input.command\" \"{}\" 2>/dev/null')",
+      "Bash(grep -v \"^$\")"
+    ]
+  }
+}

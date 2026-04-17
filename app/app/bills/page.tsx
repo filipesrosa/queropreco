@@ -9,7 +9,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 interface BillSummary {
   id: string
   establishment: { name: string; cnpj: string }
-  invoice: { issuedAt: string; number: string; series: string } | null
+  invoice: { issuedAt: string; number: string; series: string; accessKey: string } | null
   payment: { totalAmount: string; totalItems: number } | null
 }
 
@@ -34,6 +34,49 @@ function BillsContent() {
   const [from, setFrom] = useState(searchParams.get('from') ?? '')
   const [to, setTo] = useState(searchParams.get('to') ?? '')
   const [page, setPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      const keys: string[] = []
+      const limit = 50
+      let currentPage = 1
+      let totalPages = 1
+
+      do {
+        const params = new URLSearchParams()
+        if (from) params.set('from', from)
+        if (to) params.set('to', to)
+        params.set('page', String(currentPage))
+        params.set('limit', String(limit))
+
+        const res = await fetch(`${API}/bills?${params}`)
+        const { data, meta: m } = await res.json()
+
+        for (const bill of (data ?? []) as BillSummary[]) {
+          if (bill.invoice?.accessKey) {
+            keys.push(bill.invoice.accessKey.replace(/\s+/g, ''))
+          }
+        }
+
+        totalPages = m?.totalPages ?? 1
+        currentPage++
+      } while (currentPage <= totalPages)
+
+      const blob = new Blob([keys.join('\n')], { type: 'text/plain;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'cupons.txt'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -61,11 +104,29 @@ function BillsContent() {
           </svg>
         </button>
         <h1 className="text-base font-semibold text-ink">Notas capturadas</h1>
-        {meta && (
-          <span className="ml-auto text-xs text-ink/35 font-medium">
-            {meta.total} nota{meta.total !== 1 ? 's' : ''}
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {meta && (
+            <span className="text-xs text-ink/35 font-medium">
+              {meta.total} nota{meta.total !== 1 ? 's' : ''}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || !meta || meta.total === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-ink/70 border border-ink/15 rounded-xl hover:bg-ink/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            title="Baixar cupons.txt com as chaves de acesso"
+          >
+            {exporting ? (
+              <div className="w-3.5 h-3.5 border-2 border-ink/40 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+              </svg>
+            )}
+            cupons.txt
+          </button>
+        </div>
       </header>
 
       {/* Date filter */}

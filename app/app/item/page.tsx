@@ -1,0 +1,189 @@
+'use client'
+
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import type { ItemDetail, ItemDetailRecord } from '../../types/nfce'
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
+function fmt(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+function fmtDate(iso: string) {
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function BestPriceCard({ record }: { record: ItemDetailRecord }) {
+  return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
+      <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-widest mb-2">Melhor preço atual</p>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-3xl font-bold text-emerald-700">{fmt(record.unitPrice)}</p>
+          <p className="text-sm text-emerald-600 mt-1 font-medium">{record.establishment.name}</p>
+          <p className="text-xs text-emerald-500 mt-0.5">{fmtDate(record.issuedAt)}</p>
+        </div>
+        <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+          <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ItemContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const key = searchParams.get('q') ?? ''
+
+  const [detail, setDetail] = useState<ItemDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!key) { router.replace('/search'); return }
+
+    fetch(`${API}/items/detail?key=${encodeURIComponent(key)}`)
+      .then((res) => res.json())
+      .then(({ data }) => {
+        if (!data) throw new Error('Item não encontrado')
+        setDetail(data)
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [key, router])
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-neutral flex flex-col">
+        <Header onBack={() => router.back()} title="..." />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-[3px] border-brand border-t-transparent rounded-full animate-spin" />
+        </div>
+      </main>
+    )
+  }
+
+  if (error || !detail) {
+    return (
+      <main className="min-h-screen bg-neutral flex flex-col">
+        <Header onBack={() => router.back()} title="Item" />
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center max-w-sm w-full">
+            <p className="text-red-700 font-semibold">Erro ao carregar</p>
+            <p className="text-red-500 text-sm mt-1">{error}</p>
+            <button
+              onClick={() => router.back()}
+              className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold"
+            >
+              Voltar
+            </button>
+          </div>
+        </div>
+      </main>
+    )
+  }
+
+  const best = detail.byEstablishment[0]
+
+  return (
+    <main className="min-h-screen bg-neutral flex flex-col">
+      <Header onBack={() => router.back()} title={detail.description} />
+
+      <div className="flex-1 overflow-y-auto pb-8 space-y-3 pt-4 px-4">
+        {/* Best price */}
+        {best && <BestPriceCard record={best} />}
+
+        {/* Comparison by establishment */}
+        {detail.byEstablishment.length > 1 && (
+          <section className="bg-white rounded-2xl border border-ink/6 overflow-hidden">
+            <div className="px-4 py-3 border-b border-ink/6">
+              <h2 className="font-semibold text-ink text-sm">Comparação atual</h2>
+            </div>
+            <ul className="divide-y divide-ink/5">
+              {detail.byEstablishment.map((record, i) => (
+                <li key={record.establishment.cnpj} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {i === 0 && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full shrink-0">
+                        melhor
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">{record.establishment.name}</p>
+                      <p className="text-xs text-ink/40">{fmtDate(record.issuedAt)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-sm font-bold ${i === 0 ? 'text-emerald-600' : 'text-ink'}`}>
+                      {fmt(record.unitPrice)}
+                    </p>
+                    {i > 0 && best && (
+                      <p className="text-[11px] text-red-400 font-medium">
+                        +{fmt(record.unitPrice - best.unitPrice)}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Price history */}
+        <section className="bg-white rounded-2xl border border-ink/6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-ink/6">
+            <h2 className="font-semibold text-ink text-sm">
+              Histórico{' '}
+              <span className="text-ink/35 font-normal">({detail.history.length})</span>
+            </h2>
+          </div>
+          {detail.history.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-ink/45">Nenhum registro encontrado.</p>
+          ) : (
+            <ul className="divide-y divide-ink/5">
+              {detail.history.map((record) => (
+                <li key={record.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink truncate">{record.establishment.name}</p>
+                    <p className="text-xs text-ink/40 mt-0.5">{fmtDate(record.issuedAt)}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold text-ink">{fmt(record.unitPrice)}</p>
+                    <p className="text-[11px] text-ink/35">
+                      {record.quantity} {record.unit}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function Header({ onBack, title }: { onBack: () => void; title: string }) {
+  return (
+    <header className="bg-white border-b border-ink/6 px-4 py-4 flex items-center gap-3 shrink-0">
+      <button onClick={onBack} className="p-1.5 rounded-xl hover:bg-ink/5 transition-colors shrink-0">
+        <svg className="w-5 h-5 text-ink/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <h1 className="text-sm font-semibold text-ink truncate">{title}</h1>
+    </header>
+  )
+}
+
+export default function ItemPage() {
+  return (
+    <Suspense>
+      <ItemContent />
+    </Suspense>
+  )
+}

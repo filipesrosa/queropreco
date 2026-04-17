@@ -53,3 +53,37 @@ export interface NFCeReceipt {
   items: Item[]
   notes?: string
 }
+
+export interface ItemGroupEstablishment {
+  name: string
+  cnpj: string
+  lastPrice: number
+  lastSeenAt: string
+}
+
+export interface ItemGroup {
+  key: string
+  description: string
+  occurrences: number
+  minPrice: number
+  maxPrice: number
+  lastSeenAt: string
+  establishments: ItemGroupEstablishment[]
+}
+
+export interface ItemDetailRecord {
+  id: string
+  description: string
+  unitPrice: number
+  quantity: number
+  unit: string
+  establishment: { name: string; cnpj: string }
+  issuedAt: string
+}
+
+export interface ItemDetail {
+  key: string
+  description: string
+  history: ItemDetailRecord[]
+  byEstablishment: ItemDetailRecord[]
+}

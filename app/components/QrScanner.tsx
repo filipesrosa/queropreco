@@ -5,12 +5,14 @@ import { useEffect, useRef } from 'react'
 interface Props {
   onScan: (result: string) => void
   onError?: (error: string) => void
+  continuous?: boolean
 }
 
-export function QrScanner({ onScan, onError }: Props) {
+export function QrScanner({ onScan, onError, continuous = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scannerRef = useRef<import('html5-qrcode').Html5Qrcode | null>(null)
   const stoppedRef = useRef(false)
+  const lastScannedRef = useRef<{ text: string; time: number } | null>(null)
 
   useEffect(() => {
     stoppedRef.current = false
@@ -29,14 +31,24 @@ export function QrScanner({ onScan, onError }: Props) {
           { fps: 10, qrbox: { width: 260, height: 260 } },
           (text) => {
             if (stoppedRef.current) return
-            stoppedRef.current = true
-            scanner.stop()
-              .catch(() => {})
-              .finally(() => onScan(text))
+
+            if (!continuous) {
+              stoppedRef.current = true
+              scanner.stop()
+                .catch(() => {})
+                .finally(() => onScan(text))
+              return
+            }
+
+            // Continuous mode: debounce same QR code for 3s
+            const now = Date.now()
+            const last = lastScannedRef.current
+            if (last && last.text === text && now - last.time < 3000) return
+            lastScannedRef.current = { text, time: now }
+            onScan(text)
           },
           undefined
         )
-        // Component may have unmounted while start() was in progress — stop immediately
         if (stoppedRef.current) {
           scanner.stop().catch(() => {})
         }
@@ -53,7 +65,7 @@ export function QrScanner({ onScan, onError }: Props) {
         scannerRef.current?.stop().catch(() => {})
       }
     }
-  }, [onScan, onError])
+  }, [onScan, onError, continuous])
 
   return (
     <div className="flex flex-col items-center gap-4">

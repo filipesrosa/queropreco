@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useCallback, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
+
 const QrScanner = dynamic(
   () => import('../../components/QrScanner').then((m) => m.QrScanner),
   { ssr: false, loading: () => <ScannerSkeleton /> }
@@ -15,6 +17,13 @@ function ScannerSkeleton() {
   )
 }
 
+function sessionHeaders(): HeadersInit {
+  const id = typeof window !== 'undefined' ? (localStorage.getItem('qp_session_id') ?? '') : ''
+  return { 'Content-Type': 'application/json', 'X-Session-Id': id }
+}
+
+type BatchStatus = 'idle' | 'loading' | 'ok' | 'error'
+
 function ScanContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -24,11 +33,37 @@ function ScanContent() {
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const goToReview = useCallback(
-    (scannedUrl: string) => {
-      router.push(`/review?url=${encodeURIComponent(scannedUrl)}`)
+  const [batchMode, setBatchMode] = useState(false)
+  const [batchCount, setBatchCount] = useState(0)
+  const [batchStatus, setBatchStatus] = useState<BatchStatus>('idle')
+
+  const handleScan = useCallback(
+    async (scannedUrl: string) => {
+      if (!batchMode) {
+        router.push(`/review?url=${encodeURIComponent(scannedUrl)}`)
+        return
+      }
+
+      setBatchStatus('loading')
+      try {
+        const res = await fetch(`${API}/bills/capture`, {
+          method: 'POST',
+          headers: sessionHeaders(),
+          body: JSON.stringify({ url: scannedUrl }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          throw new Error(data.error ?? `Erro ${res.status}`)
+        }
+        setBatchCount((c) => c + 1)
+        setBatchStatus('ok')
+        setTimeout(() => setBatchStatus('idle'), 1500)
+      } catch {
+        setBatchStatus('error')
+        setTimeout(() => setBatchStatus('idle'), 2000)
+      }
     },
-    [router]
+    [batchMode, router]
   )
 
   function handleBarcodeChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -91,7 +126,7 @@ function ScanContent() {
             </form>
           </div>
         ) : (
-          <div className="w-full max-w-sm">
+          <div className="w-full max-w-sm flex flex-col gap-4">
             {cameraError ? (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center">
                 <p className="text-red-700 text-sm font-semibold">Erro ao acessar câmera</p>
@@ -104,7 +139,53 @@ function ScanContent() {
                 </button>
               </div>
             ) : (
-              <QrScanner onScan={goToReview} onError={setCameraError} />
+              <QrScanner onScan={handleScan} onError={setCameraError} continuous={batchMode} />
+            )}
+
+            {/* Batch mode toggle */}
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={batchMode}
+                  onChange={(e) => {
+                    setBatchMode(e.target.checked)
+                    if (!e.target.checked) {
+                      setBatchCount(0)
+                      setBatchStatus('idle')
+                    }
+                  }}
+                />
+                <div className="w-10 h-6 bg-ink/15 rounded-full peer-checked:bg-brand transition-colors" />
+                <div className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4" />
+              </div>
+              <span className="text-sm font-medium text-ink/70">Leitura em Batch</span>
+            </label>
+
+            {/* Batch feedback */}
+            {batchMode && (
+              <div className="flex items-center gap-2 min-h-[28px]">
+                {batchStatus === 'loading' && (
+                  <div className="flex items-center gap-2 text-sm text-ink/50">
+                    <div className="w-4 h-4 border-2 border-brand border-t-transparent rounded-full animate-spin" />
+                    <span>Capturando...</span>
+                  </div>
+                )}
+                {batchStatus === 'ok' && (
+                  <span className="text-sm font-semibold text-emerald-600">
+                    ✓ {batchCount} {batchCount === 1 ? 'cupom capturado' : 'cupons capturados'}
+                  </span>
+                )}
+                {batchStatus === 'error' && (
+                  <span className="text-sm font-medium text-red-500">Falha ao capturar — tente novamente</span>
+                )}
+                {batchStatus === 'idle' && batchCount > 0 && (
+                  <span className="text-sm text-ink/40">
+                    {batchCount} {batchCount === 1 ? 'cupom capturado' : 'cupons capturados'}
+                  </span>
+                )}
+              </div>
             )}
           </div>
         )}
