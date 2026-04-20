@@ -48,6 +48,42 @@ export function decodeAccessKey(raw: string): KeyData {
   }
 }
 
+// cUF → NFC-e consultation URL (key-only, no CSC hash required)
+const SEFAZ_URLS: Record<string, string> = {
+  '11': 'https://www.sefin.ro.gov.br/nfce/consulta',
+  '12': 'https://nfce.sefaznet.ac.gov.br/nfce/consulta',
+  '13': 'https://sistemas.sefaz.am.gov.br/nfceweb/consultaNFCe.jsp',
+  '15': 'https://app.sefa.pa.gov.br/nfce/consulta',
+  '17': 'https://nfce.sefaz.to.gov.br/nfce/consulta',
+  '21': 'https://www.nfce.sefaz.ma.gov.br/portal/consultaNFCe.jsp',
+  '22': 'https://www.sefaz.pi.gov.br/nfce/consulta',
+  '23': 'http://nfce.sefaz.ce.gov.br/pages/showNFCe.html',
+  '24': 'https://nfce.set.rn.gov.br/portalDFE/NFCe/QRCode',
+  '25': 'https://www.receita.pb.gov.br/nfce/consulta',
+  '26': 'https://nfce.sefaz.pe.gov.br/nfce-web/consultaNFCe',
+  '27': 'https://nfce.sefaz.al.gov.br/QRCode/consultarNFCe.jsp',
+  '28': 'https://nfce.sefaz.se.gov.br/consultaNFCe.jsp',
+  '29': 'https://nfe.sefaz.ba.gov.br/servicos/nfce/default.aspx',
+  '31': 'https://nfce.fazenda.mg.gov.br/portalnfce/sistema/qrcode.xhtml',
+  '32': 'https://nfce.sefaz.es.gov.br/consulta',
+  '33': 'https://nfce.fazenda.rj.gov.br/consulta',
+  '35': 'https://www.nfce.fazenda.sp.gov.br/consulta',
+  '41': 'https://nfce.fazenda.pr.gov.br/nfce/consulta',
+  '42': 'https://sat.sef.sc.gov.br/tax.smartconsulta.public.web/login.seam',
+  '43': 'https://www.sefaz.rs.gov.br/NFCE/NFCE-COM.aspx',
+  '50': 'https://www.dfe.ms.gov.br/nfce/consulta',
+  '51': 'https://nfce.sefaz.mt.gov.br/nfce/consultanfce',
+  '52': 'https://nfce.sefaz.go.gov.br/nfce/danfce',
+  '53': 'https://nfce.fazenda.df.gov.br/consulta',
+}
+
+export function buildSefazConsultaUrl(digits: string): string | null {
+  const cUF = digits.substring(0, 2)
+  const base = SEFAZ_URLS[cUF]
+  if (!base) return null
+  return `${base}?p=${digits}`
+}
+
 function extractFromUrl(url: string): KeyData | null {
   try {
     const p = new URL(url).searchParams.get('p')
