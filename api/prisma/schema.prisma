@@ -106,6 +106,14 @@ model Item {
   @@map("items")
 }
 
+model RandomValue {
+  id        String   @id @default(cuid())
+  value     String
+  createdAt DateTime @default(now())
+
+  @@map("random_values")
+}
+
 model RequestLog {
   id         String   @id @default(cuid())
   sessionId  String

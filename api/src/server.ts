@@ -4,6 +4,7 @@ import { billsRoutes } from './routes/bills.js'
 import { captureRoutes } from './routes/capture.js'
 import { nfpRoutes } from './routes/nfp.js'
 import { itemsRoutes } from './routes/items.js'
+import { campoRoutes } from './routes/campo.js'
 import { prisma } from './lib/prisma.js'
 
 const app = Fastify({
@@ -58,6 +59,7 @@ async function bootstrap() {
   await app.register(billsRoutes)
   await app.register(nfpRoutes)
   await app.register(itemsRoutes)
+  await app.register(campoRoutes)
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? '0.0.0.0'
