@@ -41,6 +41,9 @@ services:
       NFP_SENHA: ${NFP_SENHA:-}
       NFP_CNPJ: ${NFP_CNPJ:-}
       NFP_CATEGORIA: ${NFP_CATEGORIA:-}
+      ZAPNIT_BASE_URL: ${ZAPNIT_BASE_URL:-}
+      ZAPNIT_INSTANCE_ID: ${ZAPNIT_INSTANCE_ID:-}
+      ZAPNIT_CLIENT_TOKEN: ${ZAPNIT_CLIENT_TOKEN:-}
     depends_on:
       migrate:
         condition: service_completed_successfully
