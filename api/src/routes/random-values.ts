@@ -66,14 +66,46 @@ export async function randomValuesRoutes(app: FastifyInstance) {
           select: { value: true },
         })
 
+        const year = String(new Date().getFullYear()).slice(-2)
+        const keyRegex = new RegExp(`(?<!\\d)(35${year}\\d{40})(?!\\d)`)
+
         const chaves = records
-          .map(r => r.value.match(/p=(\d{44})/)?.[1])
+          .map(r => r.value.match(keyRegex)?.[1])
           .filter((k): k is string => k !== undefined)
 
         reply
           .header('Content-Type', 'text/plain; charset=utf-8')
           .header('Content-Disposition', `attachment; filename="cupons-${date}.txt"`)
           .send(chaves.join('\n'))
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Internal error'
+        return reply.status(400).send({ error: message })
+      }
+    }
+  )
+
+  app.get<{ Querystring: { date?: string; timezone?: string } }>(
+    '/campo/invalid',
+    async (request, reply) => {
+      const { date, timezone = '-03:00' } = request.query
+
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return reply.status(400).send({ error: 'date is required in format YYYY-MM-DD' })
+      }
+
+      try {
+        const { start, end } = dayBoundsUTC(date, timezone)
+        const year = String(new Date().getFullYear()).slice(-2)
+        const keyRegex = new RegExp(`(?<!\\d)(35${year}\\d{40})(?!\\d)`)
+
+        const records = await prisma.randomValue.findMany({
+          where: { createdAt: { gte: start, lte: end } },
+          select: { id: true, value: true, nome: true, cpf: true, createdAt: true },
+          orderBy: { createdAt: 'desc' },
+        })
+
+        const invalid = records.filter(r => !keyRegex.test(r.value))
+        return reply.send({ date, count: invalid.length, records: invalid })
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Internal error'
         return reply.status(400).send({ error: message })
