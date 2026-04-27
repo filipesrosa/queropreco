@@ -19,9 +19,9 @@ export async function billsRoutes(app: FastifyInstance) {
 
   // GET /bills - list bills with optional date filter and pagination
   app.get<{
-    Querystring: { from?: string; to?: string; page?: string; limit?: string }
+    Querystring: { from?: string; to?: string; createdFrom?: string; createdTo?: string; page?: string; limit?: string }
   }>('/bills', async (request, reply) => {
-    const { from, to, page = '1', limit = '10' } = request.query
+    const { from, to, createdFrom, createdTo, page = '1', limit = '10' } = request.query
 
     const pageNum = Math.max(1, parseInt(page) || 1)
     const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 10))
@@ -29,15 +29,16 @@ export async function billsRoutes(app: FastifyInstance) {
 
     const issuedAtFilter: { gte?: Date; lte?: Date } = {}
     if (from) issuedAtFilter.gte = new Date(from)
-    if (to) {
-      const end = new Date(to)
-      end.setHours(23, 59, 59, 999)
-      issuedAtFilter.lte = end
-    }
+    if (to) issuedAtFilter.lte = new Date(to)
 
-    const where = Object.keys(issuedAtFilter).length > 0
-      ? { invoice: { issuedAt: issuedAtFilter } }
-      : {}
+    const createdAtFilter: { gte?: Date; lte?: Date } = {}
+    if (createdFrom) createdAtFilter.gte = new Date(createdFrom)
+    if (createdTo) createdAtFilter.lte = new Date(createdTo)
+
+    const where = {
+      ...(Object.keys(issuedAtFilter).length > 0 ? { invoice: { issuedAt: issuedAtFilter } } : {}),
+      ...(Object.keys(createdAtFilter).length > 0 ? { createdAt: createdAtFilter } : {}),
+    }
 
     const [bills, total] = await Promise.all([
       prisma.bill.findMany({

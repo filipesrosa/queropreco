@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -10,12 +10,24 @@ type Status = 'idle' | 'loading' | 'success' | 'error'
 export default function CampoPage() {
   const router = useRouter()
   const [value, setValue] = useState('')
+  const [nome, setNome] = useState('')
+  const [cpf, setCpf] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [lastChave, setLastChave] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!value.trim()) return
+  function extractChave(val: string): string | null {
+    return val.match(/p=(\d{44})/)?.[1] ?? null
+  }
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  async function submit(val: string) {
+    if (!val.trim()) return
 
     setStatus('loading')
     setErrorMsg(null)
@@ -24,7 +36,7 @@ export default function CampoPage() {
       const res = await fetch(`${API}/campo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value }),
+        body: JSON.stringify({ value: val, nome, cpf }),
       })
 
       if (!res.ok) {
@@ -32,12 +44,23 @@ export default function CampoPage() {
         throw new Error(data.error ?? `Erro ${res.status}`)
       }
 
+      setLastChave(extractChave(val))
       setValue('')
       setStatus('success')
-      setTimeout(() => setStatus('idle'), 3000)
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+      statusTimerRef.current = setTimeout(() => setStatus('idle'), 2000)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Erro desconhecido')
       setStatus('error')
+    } finally {
+      inputRef.current?.focus()
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      submit(value)
     }
   }
 
@@ -58,27 +81,49 @@ export default function CampoPage() {
       <div className="flex-1 flex flex-col items-center px-6 pt-10 pb-12">
         <div className="w-full max-w-sm space-y-6">
           <p className="text-sm text-ink/45 text-center">
-            Digite um texto para armazenar
+            Aponte o leitor para o QR Code da nota fiscal
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <textarea
+          <form onSubmit={(e) => { e.preventDefault(); submit(value) }} className="space-y-4">
+            <input
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Nome"
+              className="w-full border border-ink/15 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all placeholder:text-ink/25"
+            />
+
+            <input
+              type="text"
+              value={cpf}
+              onChange={(e) => setCpf(e.target.value)}
+              placeholder="CPF"
+              className="w-full border border-ink/15 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all placeholder:text-ink/25"
+            />
+
+            <input
+              ref={inputRef}
+              type="text"
               value={value}
-              onChange={(e) => {
-                setValue(e.target.value)
-                if (status !== 'idle') setStatus('idle')
-              }}
-              placeholder="Digite seu texto aqui..."
-              rows={5}
-              className="w-full border border-ink/15 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all placeholder:text-ink/25 resize-none"
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Aguardando leitura..."
+              className="w-full border border-ink/15 rounded-xl px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all placeholder:text-ink/25"
             />
 
             {status === 'success' && (
-              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                Valor armazenado com sucesso!
+              <div className="flex flex-col gap-1 text-sm font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Salvo!
+                </div>
+                {lastChave && (
+                  <span className="text-xs font-normal text-emerald-700 break-all">
+                    Última chave de acesso salva: {lastChave}
+                  </span>
+                )}
               </div>
             )}
 

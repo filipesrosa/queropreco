@@ -12,8 +12,6 @@ export function QrScanner({ onScan, onError, continuous = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scannerRef = useRef<import('html5-qrcode').Html5Qrcode | null>(null)
   const stoppedRef = useRef(false)
-  const lastScannedRef = useRef<{ text: string; time: number } | null>(null)
-
   useEffect(() => {
     stoppedRef.current = false
 
@@ -40,11 +38,6 @@ export function QrScanner({ onScan, onError, continuous = false }: Props) {
               return
             }
 
-            // Continuous mode: debounce same QR code for 3s
-            const now = Date.now()
-            const last = lastScannedRef.current
-            if (last && last.text === text && now - last.time < 3000) return
-            lastScannedRef.current = { text, time: now }
             onScan(text)
           },
           undefined

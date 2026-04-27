@@ -24,6 +24,14 @@ function fmt(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+function toStartOfDay(date: string) {
+  return `${date}T00:00:00.000Z`
+}
+
+function toEndOfDay(date: string) {
+  return `${date}T23:59:59.999Z`
+}
+
 function BillsContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -33,6 +41,8 @@ function BillsContent() {
   const [loading, setLoading] = useState(true)
   const [from, setFrom] = useState(searchParams.get('from') ?? '')
   const [to, setTo] = useState(searchParams.get('to') ?? '')
+  const [createdFrom, setCreatedFrom] = useState(searchParams.get('createdFrom') ?? '')
+  const [createdTo, setCreatedTo] = useState(searchParams.get('createdTo') ?? '')
   const [page, setPage] = useState(1)
   const [exporting, setExporting] = useState(false)
 
@@ -46,8 +56,10 @@ function BillsContent() {
 
       do {
         const params = new URLSearchParams()
-        if (from) params.set('from', from)
-        if (to) params.set('to', to)
+        if (from) params.set('from', toStartOfDay(from))
+        if (to) params.set('to', toEndOfDay(to))
+        if (createdFrom) params.set('createdFrom', toStartOfDay(createdFrom))
+        if (createdTo) params.set('createdTo', toEndOfDay(createdTo))
         params.set('page', String(currentPage))
         params.set('limit', String(limit))
 
@@ -81,8 +93,10 @@ function BillsContent() {
   useEffect(() => {
     setLoading(true)
     const params = new URLSearchParams()
-    if (from) params.set('from', from)
-    if (to) params.set('to', to)
+    if (from) params.set('from', toStartOfDay(from))
+    if (to) params.set('to', toEndOfDay(to))
+    if (createdFrom) params.set('createdFrom', toStartOfDay(createdFrom))
+    if (createdTo) params.set('createdTo', toEndOfDay(createdTo))
     params.set('page', String(page))
     params.set('limit', '10')
 
@@ -93,7 +107,7 @@ function BillsContent() {
         setMeta(m)
       })
       .finally(() => setLoading(false))
-  }, [from, to, page])
+  }, [from, to, createdFrom, createdTo, page])
 
   return (
     <main className="min-h-screen bg-neutral flex flex-col">
@@ -130,10 +144,10 @@ function BillsContent() {
       </header>
 
       {/* Date filter */}
-      <div className="bg-white border-b border-ink/6 px-4 py-3 shrink-0">
+      <div className="bg-white border-b border-ink/6 px-4 py-3 shrink-0 space-y-3">
         <div className="flex gap-2 items-end">
           <div className="flex-1">
-            <label className="block text-[11px] font-medium text-ink/35 mb-1 uppercase tracking-wide">De</label>
+            <label className="block text-[11px] font-medium text-ink/35 mb-1 uppercase tracking-wide">Emissão — de</label>
             <input
               type="date"
               value={from}
@@ -142,7 +156,7 @@ function BillsContent() {
             />
           </div>
           <div className="flex-1">
-            <label className="block text-[11px] font-medium text-ink/35 mb-1 uppercase tracking-wide">Até</label>
+            <label className="block text-[11px] font-medium text-ink/35 mb-1 uppercase tracking-wide">Emissão — até</label>
             <input
               type="date"
               value={to}
@@ -154,6 +168,35 @@ function BillsContent() {
             <button
               type="button"
               onClick={() => { setFrom(''); setTo(''); setPage(1) }}
+              className="px-3 py-2 text-sm text-ink/50 hover:text-ink/80 border border-ink/15 rounded-xl shrink-0 transition-colors"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="block text-[11px] font-medium text-ink/35 mb-1 uppercase tracking-wide">Leitura — de</label>
+            <input
+              type="date"
+              value={createdFrom}
+              onChange={(e) => { setCreatedFrom(e.target.value); setPage(1) }}
+              className="w-full border border-ink/15 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-[11px] font-medium text-ink/35 mb-1 uppercase tracking-wide">Leitura — até</label>
+            <input
+              type="date"
+              value={createdTo}
+              onChange={(e) => { setCreatedTo(e.target.value); setPage(1) }}
+              className="w-full border border-ink/15 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 focus:border-brand transition-all"
+            />
+          </div>
+          {(createdFrom || createdTo) && (
+            <button
+              type="button"
+              onClick={() => { setCreatedFrom(''); setCreatedTo(''); setPage(1) }}
               className="px-3 py-2 text-sm text-ink/50 hover:text-ink/80 border border-ink/15 rounded-xl shrink-0 transition-colors"
             >
               Limpar
@@ -176,7 +219,7 @@ function BillsContent() {
               </svg>
             </div>
             <p className="text-ink/40 font-medium">Nenhuma nota encontrada</p>
-            {(from || to) && (
+            {(from || to || createdFrom || createdTo) && (
               <p className="text-ink/30 text-sm mt-1">Tente ajustar o filtro de datas</p>
             )}
           </div>

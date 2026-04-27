@@ -107,9 +107,12 @@ model Item {
 }
 
 model RandomValue {
-  id        String   @id @default(cuid())
-  value     String
-  createdAt DateTime @default(now())
+  id          String    @id @default(cuid())
+  value       String
+  nome        String?
+  cpf         String?
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
 
   @@map("random_values")
 }

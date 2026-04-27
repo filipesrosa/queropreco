@@ -14,6 +14,28 @@ function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+function daysSince(iso: string): number {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+}
+
+function daysLabel(iso: string): string {
+  const d = daysSince(iso)
+  if (d === 0) return 'hoje'
+  if (d === 1) return 'ontem'
+  return `há ${d}d`
+}
+
+function getPriceTrend(history: ItemDetailRecord[], cnpj: string): 'up' | 'down' | 'stable' {
+  const records = history
+    .filter(r => r.establishment.cnpj === cnpj)
+    .sort((a, b) => new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime())
+  if (records.length < 2) return 'stable'
+  const diff = records[0].unitPrice - records[1].unitPrice
+  if (diff > 0.01) return 'up'
+  if (diff < -0.01) return 'down'
+  return 'stable'
+}
+
 function BestPriceCard({ record }: { record: ItemDetailRecord }) {
   return (
     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
@@ -32,6 +54,12 @@ function BestPriceCard({ record }: { record: ItemDetailRecord }) {
       </div>
     </div>
   )
+}
+
+function TrendIcon({ trend }: { trend: 'up' | 'down' | 'stable' }) {
+  if (trend === 'up') return <span className="text-red-400 text-xs font-bold">↑</span>
+  if (trend === 'down') return <span className="text-emerald-500 text-xs font-bold">↓</span>
+  return null
 }
 
 function ItemContent() {
@@ -88,6 +116,10 @@ function ItemContent() {
   }
 
   const best = detail.byEstablishment[0]
+  const worst = detail.byEstablishment[detail.byEstablishment.length - 1]
+  const maxSavings = best && worst && worst !== best
+    ? worst.unitPrice - best.unitPrice
+    : 0
 
   return (
     <main className="min-h-screen bg-neutral flex flex-col">
@@ -102,33 +134,64 @@ function ItemContent() {
           <section className="bg-white rounded-2xl border border-ink/6 overflow-hidden">
             <div className="px-4 py-3 border-b border-ink/6">
               <h2 className="font-semibold text-ink text-sm">Comparação atual</h2>
+              {maxSavings > 0.01 && (
+                <p className="text-xs text-emerald-600 mt-0.5">
+                  Economize {fmt(maxSavings)} comprando no {best.establishment.name} vs {worst.establishment.name}
+                </p>
+              )}
             </div>
             <ul className="divide-y divide-ink/5">
-              {detail.byEstablishment.map((record, i) => (
-                <li key={record.establishment.cnpj} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {i === 0 && (
-                      <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full shrink-0">
-                        melhor
-                      </span>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-ink truncate">{record.establishment.name}</p>
-                      <p className="text-xs text-ink/40">{fmtDate(record.issuedAt)}</p>
+              {detail.byEstablishment.map((record, i) => {
+                const barWidth = best ? (best.unitPrice / record.unitPrice) * 100 : 100
+                const pct = best && i > 0
+                  ? (((record.unitPrice - best.unitPrice) / best.unitPrice) * 100).toFixed(0)
+                  : null
+                const stale = daysSince(record.issuedAt) > 60
+                const trend = getPriceTrend(detail.history, record.establishment.cnpj)
+
+                return (
+                  <li key={record.establishment.cnpj} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {i === 0 && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-full shrink-0">
+                            melhor
+                          </span>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-medium text-ink truncate">{record.establishment.name}</p>
+                            <TrendIcon trend={trend} />
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <p className="text-xs text-ink/40">{daysLabel(record.issuedAt)}</p>
+                            {stale && (
+                              <span className="text-[10px] bg-amber-100 text-amber-600 font-medium px-1 py-0.5 rounded-full">
+                                dado antigo
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-sm font-bold ${i === 0 ? 'text-emerald-600' : 'text-ink'}`}>
+                          {fmt(record.unitPrice)}
+                        </p>
+                        {pct !== null && (
+                          <p className="text-[11px] text-red-400 font-medium">+{pct}% mais caro</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className={`text-sm font-bold ${i === 0 ? 'text-emerald-600' : 'text-ink'}`}>
-                      {fmt(record.unitPrice)}
-                    </p>
-                    {i > 0 && best && (
-                      <p className="text-[11px] text-red-400 font-medium">
-                        +{fmt(record.unitPrice - best.unitPrice)}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
+                    {/* Price bar */}
+                    <div className="w-full bg-ink/5 rounded-full h-1.5 mt-2">
+                      <div
+                        className={`h-1.5 rounded-full transition-all ${i === 0 ? 'bg-emerald-400' : 'bg-ink/20'}`}
+                        style={{ width: `${barWidth}%` }}
+                      />
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           </section>
         )}
