@@ -77,7 +77,7 @@ export interface ItemDetailRecord {
   unitPrice: number
   quantity: number
   unit: string
-  establishment: { name: string; cnpj: string }
+  establishment: { name: string; cnpj: string; address: string }
   issuedAt: string
 }
 

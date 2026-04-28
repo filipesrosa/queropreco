@@ -109,6 +109,7 @@ export async function itemsRoutes(app: FastifyInstance) {
         establishment: {
           name: item.bill.establishment.name,
           cnpj: item.bill.establishment.cnpj,
+          address: item.bill.establishment.address,
         },
         issuedAt: rowDate(item).toISOString(),
       }))

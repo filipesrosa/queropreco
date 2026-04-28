@@ -2,7 +2,15 @@ import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { fetchNFCe, decodeAccessKey, buildSefazConsultaUrl } from '../lib/nfce-parser.js'
 import { upsertBill } from '../lib/bill-upsert.js'
+import { lookupCnpj } from '../lib/cnpj-lookup.js'
 import type { NFCeReceipt } from '../types/nfce.js'
+
+async function enrichEstablishment(receipt: NFCeReceipt): Promise<NFCeReceipt> {
+  if (receipt.establishment.name || !receipt.establishment.cnpj) return receipt
+  const info = await lookupCnpj(receipt.establishment.cnpj)
+  if (!info) return receipt
+  return { ...receipt, establishment: { ...receipt.establishment, ...info } }
+}
 
 export async function captureRoutes(app: FastifyInstance) {
   app.post<{ Body: { url: string } }>('/bills/capture', async (request, reply) => {
@@ -19,7 +27,7 @@ export async function captureRoutes(app: FastifyInstance) {
     }
 
     try {
-      const receipt = await fetchNFCe(url)
+      const receipt = await enrichEstablishment(await fetchNFCe(url))
       const bill = await prisma.$transaction((tx) => upsertBill(tx, receipt))
       return reply.status(201).send({ data: bill, receipt })
     } catch (error) {
@@ -40,7 +48,7 @@ export async function captureRoutes(app: FastifyInstance) {
       const sefazUrl = buildSefazConsultaUrl(digits)
       if (sefazUrl) {
         try {
-          const receipt = await fetchNFCe(sefazUrl)
+          const receipt = await enrichEstablishment(await fetchNFCe(sefazUrl))
           const bill = await prisma.$transaction((tx) => upsertBill(tx, receipt))
           return reply.status(201).send({ data: bill, receipt })
         } catch (fetchErr) {
@@ -71,8 +79,9 @@ export async function captureRoutes(app: FastifyInstance) {
         taxes: { totalTaxes: 0, taxPercentage: 0, taxSource: 'IBPT', legalBasis: 'Lei Federal 12.741/2012' },
         items: [],
       }
-      const bill = await prisma.$transaction((tx) => upsertBill(tx, receipt))
-      return reply.status(201).send({ data: bill, receipt })
+      const enriched = await enrichEstablishment(receipt)
+      const bill = await prisma.$transaction((tx) => upsertBill(tx, enriched))
+      return reply.status(201).send({ data: bill, receipt: enriched })
     } catch (error) {
       app.log.error(error)
       const message = error instanceof Error ? error.message : 'Failed to capture bill'
@@ -134,8 +143,9 @@ export async function captureRoutes(app: FastifyInstance) {
         items: [],
       }
 
-      const bill = await prisma.$transaction((tx) => upsertBill(tx, receipt))
-      return reply.status(201).send({ data: bill, receipt })
+      const enriched = await enrichEstablishment(receipt)
+      const bill = await prisma.$transaction((tx) => upsertBill(tx, enriched))
+      return reply.status(201).send({ data: bill, receipt: enriched })
     } catch (error) {
       app.log.error(error)
       const message = error instanceof Error ? error.message : 'Failed to capture bill'

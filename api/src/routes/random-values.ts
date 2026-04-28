@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { fetchNFCe } from '../lib/nfce-parser.js'
 import { upsertBill } from '../lib/bill-upsert.js'
+import { lookupCnpj } from '../lib/cnpj-lookup.js'
 
 // Parses "2026-04-25" + timezone offset like "-03:00" into UTC start/end boundaries
 function dayBoundsUTC(dateStr: string, tzOffset: string): { start: Date; end: Date } {
@@ -152,7 +153,11 @@ export async function randomValuesRoutes(app: FastifyInstance) {
         if (request.raw.destroyed) break
 
         try {
-          const receipt = await fetchNFCe(record.value)
+          let receipt = await fetchNFCe(record.value)
+          if (!receipt.establishment.name && receipt.establishment.cnpj) {
+            const info = await lookupCnpj(receipt.establishment.cnpj)
+            if (info) receipt = { ...receipt, establishment: { ...receipt.establishment, ...info } }
+          }
           await prisma.$transaction(async (tx) => {
             await upsertBill(tx, receipt)
             await tx.randomValue.update({

@@ -36,6 +36,37 @@ function getPriceTrend(history: ItemDetailRecord[], cnpj: string): 'up' | 'down'
   return 'stable'
 }
 
+function RouteButtons({ address }: { address: string }) {
+  if (!address) return null
+  const q = encodeURIComponent(address)
+  return (
+    <div className="flex gap-2 mt-3">
+      <a
+        href={`https://waze.com/ul?q=${q}&navigate=yes`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex-1 flex items-center justify-center gap-1.5 bg-[#33CCFF] text-white text-xs font-semibold py-2 px-3 rounded-xl"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15v-4H7l5-8v4h4l-5 8z"/>
+        </svg>
+        Waze
+      </a>
+      <a
+        href={`https://www.google.com/maps/dir/?api=1&destination=${q}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex-1 flex items-center justify-center gap-1.5 bg-[#4285F4] text-white text-xs font-semibold py-2 px-3 rounded-xl"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+        </svg>
+        Maps
+      </a>
+    </div>
+  )
+}
+
 function BestPriceCard({ record }: { record: ItemDetailRecord }) {
   return (
     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5">
@@ -44,14 +75,18 @@ function BestPriceCard({ record }: { record: ItemDetailRecord }) {
         <div>
           <p className="text-3xl font-bold text-emerald-700">{fmt(record.unitPrice)}</p>
           <p className="text-sm text-emerald-600 mt-1 font-medium">{record.establishment.name}</p>
+          {record.establishment.address && (
+            <p className="text-xs text-emerald-500 mt-0.5 leading-relaxed">{record.establishment.address}</p>
+          )}
           <p className="text-xs text-emerald-500 mt-0.5">{fmtDate(record.issuedAt)}</p>
         </div>
-        <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
           <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
           </svg>
         </div>
       </div>
+      <RouteButtons address={record.establishment.address} />
     </div>
   )
 }
