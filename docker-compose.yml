@@ -21,6 +21,7 @@ services:
     command: pnpm db:deploy
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
     depends_on:
       db:
         condition: service_healthy
@@ -33,6 +34,8 @@ services:
       - "4001:${PORT:-3001}"
     environment:
       DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-3001}
       HOST: ${HOST:-0.0.0.0}
@@ -58,6 +61,7 @@ services:
       - "4000:3000"
     environment:
       NODE_ENV: ${NODE_ENV:-production}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
     depends_on:
       - api
 

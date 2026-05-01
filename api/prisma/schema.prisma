@@ -134,3 +134,86 @@ model RequestLog {
   @@index([createdAt])
   @@map("request_logs")
 }
+
+// ── Backoffice ────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  ENTITY_ADMIN
+  READER
+}
+
+model Entity {
+  id                String        @id @default(cuid())
+  cnpj              String        @unique
+  name              String
+  address           String
+  phone             String?
+  logo              String?
+  notificationPhone String?
+  active            Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  users             User[]
+  readings          UserReading[]
+  goals             ReadingGoal[]
+
+  @@map("entities")
+}
+
+model User {
+  id        String        @id @default(cuid())
+  name      String
+  cpf       String        @unique
+  phone     String?
+  email     String        @unique
+  password  String
+  role      Role          @default(READER)
+  entityId  String?
+  entity    Entity?       @relation(fields: [entityId], references: [id])
+  active    Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  readings  UserReading[]
+  goals     ReadingGoal[]
+
+  @@index([email])
+  @@index([entityId])
+  @@map("users")
+}
+
+model UserReading {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  readerName String?
+  readerCpf  String?
+  accessKey  String
+  entityId   String?
+  entity     Entity?  @relation(fields: [entityId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("user_readings")
+}
+
+model ReadingGoal {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  entityId   String
+  entity     Entity    @relation(fields: [entityId], references: [id])
+  weekStart  DateTime
+  target     Int
+  createdBy  String
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([userId, weekStart])
+  @@index([entityId])
+  @@index([weekStart])
+  @@map("reading_goals")
+}

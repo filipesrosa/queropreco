@@ -87,3 +87,42 @@ export interface ItemDetail {
   history: ItemDetailRecord[]
   byEstablishment: ItemDetailRecord[]
 }
+
+export interface EstItemEntry {
+  key: string
+  description: string
+  price: number
+  issuedAt: string
+  stale: boolean
+}
+
+export interface EstablishmentSummary {
+  cnpj: string
+  name: string
+  address: string
+  lastVisit: string
+  itemCount: number
+  priceIndex: number | null
+  items: EstItemEntry[]
+}
+
+export interface ProductPrice {
+  price: number
+  issuedAt: string
+  stale: boolean
+}
+
+export interface ProductComparison {
+  key: string
+  description: string
+  bestPrice: number
+  bestCnpj: string
+  maxSavings: number
+  prices: Record<string, ProductPrice>
+}
+
+export interface CompareData {
+  establishments: EstablishmentSummary[]
+  products: ProductComparison[]
+  totalProducts: number
+}

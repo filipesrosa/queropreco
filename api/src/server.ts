@@ -6,7 +6,13 @@ import { nfpRoutes } from './routes/nfp.js'
 import { itemsRoutes } from './routes/items.js'
 import { campoRoutes } from './routes/campo.js'
 import { randomValuesRoutes } from './routes/random-values.js'
+import { compareRoutes } from './routes/compare.js'
 import { prisma } from './lib/prisma.js'
+import authPlugin from './lib/auth.js'
+import { authRoutes } from './routes/auth.js'
+import { entitiesRoutes } from './routes/entities.js'
+import { usersRoutes } from './routes/users.js'
+import { backofficeRoutes } from './routes/backoffice.js'
 
 const app = Fastify({
   logger: {
@@ -31,9 +37,19 @@ async function enrichGeo(logId: string, ip: string | null) {
 }
 
 async function bootstrap() {
+  const corsOrigin = process.env.CORS_ORIGIN ?? '*'
   await app.register(cors, {
-    origin: process.env.CORS_ORIGIN ?? '*',
+    // `true` reflects the request Origin header — required when credentials: true
+    // (browsers reject `Access-Control-Allow-Origin: *` with credentialed requests)
+    origin: corsOrigin === '*' ? true : corsOrigin,
+    credentials: true,
   })
+
+  await app.register(authPlugin)
+  await app.register(authRoutes)
+  await app.register(entitiesRoutes)
+  await app.register(usersRoutes)
+  await app.register(backofficeRoutes)
 
   app.addHook('onRequest', async (request) => {
     const sessionId = request.headers['x-session-id'] as string | undefined
@@ -62,6 +78,7 @@ async function bootstrap() {
   await app.register(itemsRoutes)
   await app.register(campoRoutes)
   await app.register(randomValuesRoutes)
+  await app.register(compareRoutes)
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? '0.0.0.0'
