@@ -41,7 +41,6 @@ export default function ReportsPage() {
     const params = new URLSearchParams()
     if (from) params.set('from', from)
     if (to) params.set('to', to)
-
     Promise.all([
       fetch(`${API}/backoffice/reports/readers?${params}`, { credentials: 'include' }).then((r) => r.json()),
       fetch(`${API}/backoffice/readings/anonymous?${params}`, { credentials: 'include' }).then((r) => r.json()),
@@ -55,32 +54,38 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-semibold text-gray-900">Relatórios</h1>
-        <Link href="/backoffice/reports/goals" className="text-sm text-blue-600 hover:underline">
-          Gerenciar metas →
+        <Link href="/backoffice/reports/goals"
+          className="px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 font-medium text-sm">
+          Gerenciar metas
         </Link>
       </div>
 
       {/* Date filter */}
-      <div className="flex gap-3 items-end">
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">De</label>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm" />
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <p className="text-xs text-gray-500 font-medium mb-3">Filtrar período</p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">De</label>
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex-1">
+            <label className="block text-xs text-gray-500 mb-1">Até</label>
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div className="flex items-end">
+            <button onClick={fetchReports}
+              className="w-full sm:w-auto bg-blue-600 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-blue-700">
+              Filtrar
+            </button>
+          </div>
         </div>
-        <div>
-          <label className="block text-xs text-gray-500 mb-1">Até</label>
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-            className="border border-gray-300 rounded px-2 py-1 text-sm" />
-        </div>
-        <button onClick={fetchReports}
-          className="bg-blue-600 text-white rounded px-3 py-1.5 text-sm hover:bg-blue-700">
-          Filtrar
-        </button>
       </div>
 
-      {/* Readers table */}
+      {/* Readers */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100">
           <h2 className="font-medium text-gray-800">Leituras por Leitor</h2>
@@ -90,42 +95,33 @@ export default function ReportsPage() {
         ) : readers.length === 0 ? (
           <p className="p-4 text-sm text-gray-500">Nenhuma leitura registrada.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-xs">
-              <tr>
-                <th className="text-left px-4 py-2">Leitor</th>
-                <th className="text-left px-4 py-2">CPF</th>
-                <th className="text-right px-4 py-2">Leituras</th>
-                <th className="text-left px-4 py-2 w-40">Meta semanal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {readers.map((r) => (
-                <tr key={r.readerCpf} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">{r.readerName}</td>
-                  <td className="px-4 py-3 text-gray-600 font-mono">{r.readerCpf}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-blue-700">{r.count}</td>
-                  <td className="px-4 py-3">
-                    {r.goal != null && r.goalPercent != null ? (
-                      <div>
-                        <span className="text-xs text-gray-500">{r.goalPercent}%</span>
-                        <ProgressBar percent={r.goalPercent} />
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">Sem meta</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="flex flex-col divide-y divide-gray-100">
+            {readers.map((r) => (
+              <div key={r.readerCpf} className="px-4 py-3 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 text-sm">{r.readerName}</p>
+                  <p className="text-xs font-mono text-gray-400 mt-0.5">{r.readerCpf}</p>
+                  {r.goal != null && r.goalPercent != null && (
+                    <div className="mt-1.5">
+                      <span className="text-xs text-gray-500">Meta: {r.goalPercent}%</span>
+                      <ProgressBar percent={r.goalPercent} />
+                    </div>
+                  )}
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-xl font-bold text-blue-700">{r.count}</p>
+                  <p className="text-xs text-gray-400">leituras</p>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
-      {/* Anonymous readings */}
+      {/* Anonymous */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-medium text-gray-800">Leituras Anônimas (sem login)</h2>
+          <h2 className="font-medium text-gray-800">Leituras Anônimas</h2>
           {anon && <span className="text-sm font-semibold text-gray-700">{anon.count} total</span>}
         </div>
         {loading ? (
@@ -133,22 +129,14 @@ export default function ReportsPage() {
         ) : !anon || anon.count === 0 ? (
           <p className="p-4 text-sm text-gray-500">Nenhuma leitura anônima no período.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 text-xs">
-              <tr>
-                <th className="text-left px-4 py-2">Data</th>
-                <th className="text-right px-4 py-2">Quantidade</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {anon.dates.map((d) => (
-                <tr key={d.date}>
-                  <td className="px-4 py-2 text-gray-700">{d.date}</td>
-                  <td className="px-4 py-2 text-right font-medium text-gray-800">{d.count}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="flex flex-col divide-y divide-gray-100">
+            {anon.dates.map((d) => (
+              <div key={d.date} className="px-4 py-3 flex items-center justify-between">
+                <span className="text-sm text-gray-700">{d.date}</span>
+                <span className="font-semibold text-gray-800">{d.count}</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

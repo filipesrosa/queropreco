@@ -40,6 +40,7 @@ export default function NavLinks() {
       {link('/backoffice/reading', 'Leitura')}
       {(role === 'ENTITY_ADMIN' || role === 'ADMIN') && link('/backoffice/reports', 'Relatórios')}
       {role === 'ADMIN' && link('/backoffice/management', 'Gestão')}
+      {role === 'ADMIN' && link('/backoffice/products', 'Produtos')}
     </nav>
   )
 }

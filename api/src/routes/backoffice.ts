@@ -94,6 +94,16 @@ export async function backofficeRoutes(app: FastifyInstance) {
       // unauthenticated — use body values
     }
 
+    if (userId) {
+      const existing = await prisma.userReading.findFirst({
+        where: { userId, accessKey: body.accessKey },
+        select: { id: true },
+      })
+      if (existing) {
+        return reply.status(409).send({ error: 'Cupom já registrado por você' })
+      }
+    }
+
     const reading = await prisma.userReading.create({
       data: {
         userId,
@@ -140,6 +150,33 @@ export async function backofficeRoutes(app: FastifyInstance) {
     const where = entityId ? { ...baseWhere, entityId } : baseWhere
     const count = await prisma.userReading.count({ where })
     return { count, date, entityId: entityId ?? null }
+  })
+
+  // ── GET /backoffice/readings/today ───────────────────────────────────────
+
+  app.get('/backoffice/readings/today', { preHandler: app.verifyJwt }, async (request) => {
+    const me = request.user as JWTUser
+    const { date = new Date().toISOString().slice(0, 10), timezone = '-03:00', entityId } =
+      request.query as { date?: string; timezone?: string; entityId?: string }
+
+    const bounds = dayBounds(date, timezone)
+
+    let where: any = { createdAt: bounds }
+    if (me.role === 'READER') {
+      where.userId = me.id
+    } else if (me.role === 'ENTITY_ADMIN') {
+      where.entityId = me.entityId
+    } else if (entityId) {
+      where.entityId = entityId
+    }
+
+    const readings = await prisma.userReading.findMany({
+      where,
+      select: { id: true, accessKey: true, readerName: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    })
+
+    return readings
   })
 
   // ── GET /backoffice/readings/anonymous ────────────────────────────────────
@@ -339,5 +376,29 @@ export async function backofficeRoutes(app: FastifyInstance) {
       data: { target, notifiedAt },
     })
     return updated
+  })
+
+  // ── GET /backoffice/my-goal ───────────────────────────────────────────────
+
+  app.get('/backoffice/my-goal', { preHandler: app.verifyJwt }, async (request) => {
+    const me = request.user as JWTUser
+    const weekStart = currentWeekStart()
+    const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000)
+
+    const [goal, count] = await Promise.all([
+      prisma.readingGoal.findUnique({
+        where: { userId_weekStart: { userId: me.id, weekStart } },
+      }),
+      prisma.userReading.count({
+        where: { userId: me.id, createdAt: { gte: weekStart, lt: weekEnd } },
+      }),
+    ])
+
+    return {
+      target: goal?.target ?? null,
+      current: count,
+      goalPercent: goal ? Math.round((count / goal.target) * 100) : null,
+      weekStart: weekStart.toISOString().slice(0, 10),
+    }
   })
 }

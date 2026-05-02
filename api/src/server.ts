@@ -13,6 +13,7 @@ import { authRoutes } from './routes/auth.js'
 import { entitiesRoutes } from './routes/entities.js'
 import { usersRoutes } from './routes/users.js'
 import { backofficeRoutes } from './routes/backoffice.js'
+import { productsRoutes } from './routes/products.js'
 
 const app = Fastify({
   logger: {
@@ -50,6 +51,7 @@ async function bootstrap() {
   await app.register(entitiesRoutes)
   await app.register(usersRoutes)
   await app.register(backofficeRoutes)
+  await app.register(productsRoutes)
 
   app.addHook('onRequest', async (request) => {
     const sessionId = request.headers['x-session-id'] as string | undefined

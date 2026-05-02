@@ -64,6 +64,7 @@ export interface ItemGroupEstablishment {
 export interface ItemGroup {
   key: string
   description: string
+  productName: string | null
   occurrences: number
   minPrice: number
   maxPrice: number
@@ -84,6 +85,7 @@ export interface ItemDetailRecord {
 export interface ItemDetail {
   key: string
   description: string
+  productName: string | null
   history: ItemDetailRecord[]
   byEstablishment: ItemDetailRecord[]
 }

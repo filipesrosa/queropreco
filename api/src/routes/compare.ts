@@ -1,11 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
-
-function normalize(desc: string) {
-  return desc.toUpperCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ').trim()
-}
+import { normalize } from '../lib/normalize.js'
 
 function daysSince(iso: string): number {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)

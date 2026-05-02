@@ -1,7 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { useState, useEffect, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import type { ItemGroup } from '../../types/nfce'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
@@ -20,11 +20,12 @@ function timeAgo(iso: string) {
   return `${months} ${months === 1 ? 'mês' : 'meses'} atrás`
 }
 
-export default function SearchPage() {
+function SearchContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => searchParams.get('q') ?? '')
   const [results, setResults] = useState<ItemGroup[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
@@ -35,6 +36,9 @@ export default function SearchPage() {
 
   useEffect(() => {
     const q = query.trim()
+    const url = q ? `/search?q=${encodeURIComponent(q)}` : '/search'
+    router.replace(url, { scroll: false })
+
     if (q.length < 2) {
       setResults([])
       setSearched(false)
@@ -56,7 +60,7 @@ export default function SearchPage() {
     }, 400)
 
     return () => clearTimeout(timer)
-  }, [query])
+  }, [query, router])
 
   return (
     <main className="min-h-screen bg-neutral flex flex-col">
@@ -131,9 +135,14 @@ export default function SearchPage() {
                   className="w-full bg-white rounded-2xl p-4 shadow-sm border border-ink/6 hover:border-brand/30 hover:shadow-md transition-all text-left"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <p className="font-medium text-ink text-sm leading-snug flex-1">
-                      {group.description}
-                    </p>
+                    <div className="flex-1">
+                      <p className="font-medium text-ink text-sm leading-snug">
+                        {group.productName ?? group.description}
+                      </p>
+                      {group.productName && (
+                        <p className="text-[11px] text-ink/35 mt-0.5 leading-snug">{group.description}</p>
+                      )}
+                    </div>
                     <svg className="w-4 h-4 text-ink/20 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -179,5 +188,13 @@ export default function SearchPage() {
         )}
       </div>
     </main>
+  )
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchContent />
+    </Suspense>
   )
 }

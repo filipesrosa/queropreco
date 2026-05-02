@@ -1,16 +1,12 @@
 import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
-
-function normalize(desc: string) {
-  return desc.toUpperCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ').trim()
-}
+import { normalize } from '../lib/normalize.js'
 
 async function fetchItemRows(q: string) {
   return prisma.item.findMany({
     where: { description: { contains: q, mode: 'insensitive' } },
     include: {
+      product: { select: { name: true } },
       bill: {
         include: {
           establishment: true,
@@ -37,6 +33,7 @@ export async function itemsRoutes(app: FastifyInstance) {
     type Group = {
       key: string
       description: string
+      productName: string | null
       occurrences: number
       minPrice: number
       maxPrice: number
@@ -55,6 +52,7 @@ export async function itemsRoutes(app: FastifyInstance) {
         groups.set(key, {
           key,
           description: item.description,
+          productName: item.product?.name ?? null,
           occurrences: 0,
           minPrice: price,
           maxPrice: price,
@@ -67,6 +65,7 @@ export async function itemsRoutes(app: FastifyInstance) {
       g.occurrences++
       if (price < g.minPrice) g.minPrice = price
       if (price > g.maxPrice) g.maxPrice = price
+      if (!g.productName && item.product?.name) g.productName = item.product.name
       if (seenAt > g.lastSeenAt) {
         g.lastSeenAt = seenAt
         g.description = item.description
@@ -129,6 +128,7 @@ export async function itemsRoutes(app: FastifyInstance) {
       data: {
         key,
         description: filtered[0]?.description ?? key,
+        productName: filtered[0]?.product?.name ?? null,
         history,
         byEstablishment,
       },

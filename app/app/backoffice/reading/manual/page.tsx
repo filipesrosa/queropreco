@@ -18,7 +18,6 @@ export default function ManualReadingPage() {
       setStatus('error')
       return
     }
-
     setStatus('loading')
     try {
       const res = await fetch(`${API}/backoffice/readings`, {
@@ -45,7 +44,10 @@ export default function ManualReadingPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Link href="/backoffice/reading" className="text-gray-500 hover:text-gray-800">← Voltar</Link>
+        <Link href="/backoffice/reading"
+          className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 text-sm font-medium">
+          ← Voltar
+        </Link>
         <h1 className="text-xl font-semibold text-gray-900">Digitar Chave de Acesso</h1>
       </div>
 
@@ -61,18 +63,18 @@ export default function ManualReadingPage() {
             onChange={(e) => { setKey(e.target.value); setStatus('idle') }}
             placeholder="00000000000000000000000000000000000000000000"
             maxLength={44}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <p className="text-xs text-gray-400 mt-1">{key.replace(/\D/g, '').length}/44 dígitos</p>
         </div>
 
         {status === 'success' && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-green-800 text-sm">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-green-800 text-sm font-medium">
             ✓ {message}
           </div>
         )}
         {status === 'error' && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-800 text-sm">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-800 text-sm">
             {message}
           </div>
         )}
@@ -80,7 +82,7 @@ export default function ManualReadingPage() {
         <button
           type="submit"
           disabled={status === 'loading'}
-          className="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="bg-blue-600 text-white rounded-xl px-4 py-3 text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
         >
           {status === 'loading' ? 'Registrando...' : 'Registrar Cupom'}
         </button>

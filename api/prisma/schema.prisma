@@ -2,7 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-1.1.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -100,10 +101,34 @@ model Item {
   unit        String
   unitPrice   Decimal  @db.Decimal(10, 2)
   totalPrice  Decimal  @db.Decimal(10, 2)
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@map("items")
+}
+
+model Product {
+  id        String           @id @default(cuid())
+  name      String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  mappings  ProductMapping[]
+  items     Item[]
+
+  @@map("products")
+}
+
+model ProductMapping {
+  id                    String   @id @default(cuid())
+  normalizedDescription String   @unique
+  productId             String
+  product               Product  @relation(fields: [productId], references: [id])
+  createdAt             DateTime @default(now())
+
+  @@index([normalizedDescription])
+  @@map("product_mappings")
 }
 
 model RandomValue {
@@ -197,6 +222,7 @@ model UserReading {
   @@index([entityId])
   @@index([createdAt])
   @@map("user_readings")
+  // partial unique index on (userId, accessKey) WHERE userId IS NOT NULL applied directly in DB
 }
 
 model ReadingGoal {

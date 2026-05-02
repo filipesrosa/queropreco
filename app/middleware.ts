@@ -23,7 +23,10 @@ export async function middleware(request: NextRequest) {
     const { payload } = await jwtVerify(token, SECRET)
     const role = payload.role as string
 
-    if (pathname.startsWith('/backoffice/management') && role !== 'ADMIN') {
+    if (
+      (pathname.startsWith('/backoffice/management') || pathname.startsWith('/backoffice/products')) &&
+      role !== 'ADMIN'
+    ) {
       return NextResponse.redirect(new URL('/backoffice/reading', request.url))
     }
 

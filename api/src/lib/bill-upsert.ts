@@ -1,7 +1,17 @@
 import { PrismaClient } from '@prisma/client'
 import { NFCeReceipt } from '../types/nfce.js'
+import { normalize } from './normalize.js'
 
 type TxClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>
+
+async function resolveProductIds(tx: TxClient, items: NFCeReceipt['items']): Promise<Map<string, string>> {
+  const keys = items.map((i) => normalize(i.description))
+  const mappings = await tx.productMapping.findMany({
+    where: { normalizedDescription: { in: keys } },
+    select: { normalizedDescription: true, productId: true },
+  })
+  return new Map(mappings.map((m) => [m.normalizedDescription, m.productId]))
+}
 
 export async function upsertBill(tx: TxClient, receipt: NFCeReceipt) {
   const establishment = await tx.establishment.upsert({
@@ -60,24 +70,28 @@ export async function upsertBill(tx: TxClient, receipt: NFCeReceipt) {
       where: { billId },
       data: {
         totalTaxes: receipt.taxes.totalTaxes,
-        taxPercentage: receipt.taxes.taxPercentage,
+        taxPercentage: Math.min(receipt.taxes.taxPercentage, 999.99),
         taxSource: receipt.taxes.taxSource,
         legalBasis: receipt.taxes.legalBasis,
       },
     })
 
-    await tx.item.deleteMany({ where: { billId } })
-    await tx.item.createMany({
-      data: receipt.items.map((item) => ({
-        billId,
-        code: item.code,
-        description: item.description,
-        quantity: item.quantity,
-        unit: item.unit,
-        unitPrice: item.unitPrice,
-        totalPrice: item.totalPrice,
-      })),
-    })
+    if (receipt.items.length > 0) {
+      const productMap = await resolveProductIds(tx, receipt.items)
+      await tx.item.deleteMany({ where: { billId } })
+      await tx.item.createMany({
+        data: receipt.items.map((item) => ({
+          billId,
+          code: item.code,
+          description: item.description,
+          quantity: item.quantity,
+          unit: item.unit,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          productId: productMap.get(normalize(item.description)) ?? null,
+        })),
+      })
+    }
 
     return tx.bill.update({
       where: { id: billId },
@@ -126,14 +140,17 @@ export async function upsertBill(tx: TxClient, receipt: NFCeReceipt) {
       },
       items: {
         createMany: {
-          data: receipt.items.map((item) => ({
-            code: item.code,
-            description: item.description,
-            quantity: item.quantity,
-            unit: item.unit,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })),
+          data: await resolveProductIds(tx, receipt.items).then((productMap) =>
+            receipt.items.map((item) => ({
+              code: item.code,
+              description: item.description,
+              quantity: item.quantity,
+              unit: item.unit,
+              unitPrice: item.unitPrice,
+              totalPrice: item.totalPrice,
+              productId: productMap.get(normalize(item.description)) ?? null,
+            }))
+          ),
         },
       },
     },

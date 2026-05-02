@@ -158,7 +158,7 @@ function ItemContent() {
 
   return (
     <main className="min-h-screen bg-neutral flex flex-col">
-      <Header onBack={() => router.back()} title={detail.description} />
+      <Header onBack={() => router.back()} title={detail.productName ?? detail.description} />
 
       <div className="flex-1 overflow-y-auto pb-8 space-y-3 pt-4 px-4">
         {/* Best price */}

@@ -28,7 +28,7 @@ export default function LoginPage() {
         setError(data.error ?? 'Erro ao fazer login')
         return
       }
-      router.push('/backoffice/reading')
+      window.location.href = '/backoffice/reading'
     } catch {
       setError('Erro de conexão')
     } finally {
