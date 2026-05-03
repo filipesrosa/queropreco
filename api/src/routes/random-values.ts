@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { fetchNFCe } from '../lib/nfce-parser.js'
+import { fetchNFCeViaPlaywright, extractAccessKey } from '../lib/playwright-nfce.js'
 import { upsertBill } from '../lib/bill-upsert.js'
 import { lookupCnpj } from '../lib/cnpj-lookup.js'
 
@@ -147,13 +148,21 @@ export async function randomValuesRoutes(app: FastifyInstance) {
 
     let processed = 0
     let errors = 0
+    let viaCaptcha = 0
 
     try {
       for (const record of pending) {
         if (request.raw.destroyed) break
 
         try {
-          let receipt = await fetchNFCe(record.value)
+          let usedCaptcha = false
+          let receipt = await fetchNFCe(record.value).catch(async () => {
+            const key = extractAccessKey(record.value)
+            if (!key) throw new Error('Cannot extract access key for Playwright fallback')
+            usedCaptcha = true
+            return fetchNFCeViaPlaywright(key)
+          })
+          if (usedCaptcha) viaCaptcha++
           if (!receipt.establishment.name && receipt.establishment.cnpj) {
             const info = await lookupCnpj(receipt.establishment.cnpj)
             if (info) receipt = { ...receipt, establishment: { ...receipt.establishment, ...info } }
@@ -166,15 +175,15 @@ export async function randomValuesRoutes(app: FastifyInstance) {
             })
           })
           processed++
-          if (!send('progress', { id: record.id, status: 'ok', processed, errors, remaining: pending.length - processed - errors })) break
+          if (!send('progress', { id: record.id, status: 'ok', processed, errors, viaCaptcha, remaining: pending.length - processed - errors })) break
         } catch (err) {
           errors++
           app.log.warn({ recordId: record.id, err }, 'Failed to process record')
-          if (!send('progress', { id: record.id, status: 'error', message: err instanceof Error ? err.message : 'Unknown error', processed, errors, remaining: pending.length - processed - errors })) break
+          if (!send('progress', { id: record.id, status: 'error', message: err instanceof Error ? err.message : 'Unknown error', processed, errors, viaCaptcha, remaining: pending.length - processed - errors })) break
         }
       }
 
-      send('done', { processed, errors, total: pending.length })
+      send('done', { processed, errors, viaCaptcha, total: pending.length })
     } finally {
       reply.raw.end()
     }

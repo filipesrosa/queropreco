@@ -23,7 +23,7 @@ export default function CampoProcessPage() {
   const [phase, setPhase] = useState<Phase>('idle')
   const [total, setTotal] = useState(0)
   const [progress, setProgress] = useState<ProgressEvent | null>(null)
-  const [final, setFinal] = useState<{ processed: number; errors: number; total: number } | null>(null)
+  const [final, setFinal] = useState<{ processed: number; errors: number; viaCaptcha: number; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [errorGroups, setErrorGroups] = useState<Record<string, number>>({})
   const abortRef = useRef<AbortController | null>(null)
@@ -99,12 +99,21 @@ export default function CampoProcessPage() {
         }
       }
     } catch (err) {
-      if ((err as Error).name === 'AbortError') return
+      if ((err as Error).name === 'AbortError') {
+        setPhase('idle')
+        setLoading(true)
+        fetchPending()
+        return
+      }
       setError(err instanceof Error ? err.message : 'Erro ao processar')
       setPhase('error')
     } finally {
       abortRef.current = null
     }
+  }
+
+  function handleStop() {
+    abortRef.current?.abort()
   }
 
   return (
@@ -148,6 +157,15 @@ export default function CampoProcessPage() {
               </span>
             ) : 'Processar'}
           </button>
+
+          {phase === 'streaming' && (
+            <button
+              onClick={handleStop}
+              className="w-full border border-red-300 text-red-500 font-semibold py-3.5 rounded-xl hover:bg-red-50 transition-colors"
+            >
+              Parar
+            </button>
+          )}
 
           {phase === 'streaming' && (
             <div className="bg-white border border-ink/10 rounded-2xl px-6 py-5 shadow-sm space-y-3">
@@ -197,6 +215,13 @@ export default function CampoProcessPage() {
                   <p className="text-xs text-ink/45 mt-1">total</p>
                 </div>
               </div>
+              {final.viaCaptcha > 0 && (
+                <div className="mt-3 pt-3 border-t border-ink/6 text-center">
+                  <p className="text-sm text-ink/50">
+                    <span className="font-semibold text-amber-500">{final.viaCaptcha}</span> lidas via reCAPTCHA
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
