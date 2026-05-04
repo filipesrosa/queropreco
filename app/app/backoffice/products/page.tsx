@@ -4,11 +4,20 @@ import { useEffect, useState } from 'react'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
+const UNLINKED_PAGE_SIZE = 50
+
 interface UnlinkedGroup {
   normalizedDescription: string
   sampleDescription: string
   occurrences: number
   lastSeenAt: string
+}
+
+interface UnlinkedResponse {
+  data: UnlinkedGroup[]
+  total: number
+  page: number
+  totalPages: number
 }
 
 interface ProductMapping {
@@ -62,6 +71,9 @@ function SearchInput({ value, onChange, placeholder }: { value: string; onChange
 export default function ProductsPage() {
   const [tab, setTab] = useState<Tab>('unlinked')
   const [unlinked, setUnlinked] = useState<UnlinkedGroup[]>([])
+  const [unlinkedTotal, setUnlinkedTotal] = useState(0)
+  const [unlinkedPage, setUnlinkedPage] = useState(1)
+  const [unlinkedTotalPages, setUnlinkedTotalPages] = useState(1)
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [activeRow, setActiveRow] = useState<ActiveRow | null>(null)
@@ -79,22 +91,42 @@ export default function ProductsPage() {
   const [renameSaving, setRenameSaving] = useState(false)
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
 
+  async function loadUnlinked(page: number, q: string) {
+    const params = new URLSearchParams({ page: String(page), limit: String(UNLINKED_PAGE_SIZE) })
+    if (q.trim()) params.set('q', q.trim())
+    const res = await fetch(`${API}/products/unlinked-groups?${params}`, { credentials: 'include' })
+    const data: UnlinkedResponse = await res.json()
+    setUnlinked(data.data ?? [])
+    setUnlinkedTotal(data.total ?? 0)
+    setUnlinkedPage(data.page ?? 1)
+    setUnlinkedTotalPages(data.totalPages ?? 1)
+  }
+
   async function loadAll() {
     setLoading(true)
     try {
-      const [uRes, pRes] = await Promise.all([
-        fetch(`${API}/products/unlinked-groups`, { credentials: 'include' }),
+      const [, pRes] = await Promise.all([
+        loadUnlinked(1, ''),
         fetch(`${API}/products`, { credentials: 'include' }),
       ])
-      const [u, p] = await Promise.all([uRes.json(), pRes.json()])
-      setUnlinked(u.data ?? [])
+      const p = await pRes.json()
       setProducts(p ?? [])
+      setUnlinkedSearch('')
+      setUnlinkedPage(1)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => { loadAll() }, [])
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setUnlinkedPage(1)
+      loadUnlinked(1, unlinkedSearch)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [unlinkedSearch])
 
   async function handleLink(normalizedDescription: string, productId: string) {
     setSaving(true)
@@ -172,13 +204,6 @@ export default function ProductsPage() {
     </button>
   )
 
-  const filteredUnlinked = unlinkedSearch.trim()
-    ? unlinked.filter((g) =>
-        g.normalizedDescription.includes(unlinkedSearch.toUpperCase()) ||
-        g.sampleDescription.toLowerCase().includes(unlinkedSearch.toLowerCase())
-      )
-    : unlinked
-
   const filteredProducts = productSearch.trim()
     ? products.filter((p) => p.name.toLowerCase().includes(productSearch.toLowerCase()))
     : products
@@ -188,7 +213,7 @@ export default function ProductsPage() {
       <h1 className="text-xl font-bold text-gray-900 mb-4">Produtos</h1>
 
       <div className="flex gap-2 mb-6">
-        {tabBtn('unlinked', `Não vinculados${unlinked.length > 0 ? ` (${unlinked.length})` : ''}`)}
+        {tabBtn('unlinked', `Não vinculados${unlinkedTotal > 0 ? ` (${unlinkedTotal})` : ''}`)}
         {tabBtn('products', `Produtos (${products.length})`)}
       </div>
 
@@ -200,12 +225,12 @@ export default function ProductsPage() {
         <div>
           <SearchInput value={unlinkedSearch} onChange={setUnlinkedSearch} placeholder="Buscar descrição não vinculada..." />
           <div className="space-y-3">
-            {filteredUnlinked.length === 0 ? (
+            {unlinked.length === 0 ? (
               <p className="text-gray-500 text-sm py-8 text-center">
                 {unlinkedSearch ? 'Nenhum resultado.' : 'Todos os itens estão vinculados.'}
               </p>
             ) : (
-              filteredUnlinked.map((group) => (
+              unlinked.map((group) => (
                 <div key={group.normalizedDescription} className="bg-white border border-gray-200 rounded-xl p-4">
                   <div className="flex-1 min-w-0 mb-3">
                     <p className="font-mono text-sm font-medium text-gray-900 break-all">{group.normalizedDescription}</p>
@@ -304,6 +329,30 @@ export default function ProductsPage() {
               ))
             )}
           </div>
+
+          {unlinkedTotalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+              <span className="text-xs text-gray-500">
+                Página {unlinkedPage} de {unlinkedTotalPages} · {unlinkedTotal} grupos
+              </span>
+              <div className="flex gap-2">
+                <button
+                  disabled={unlinkedPage <= 1}
+                  onClick={() => { const p = unlinkedPage - 1; setUnlinkedPage(p); loadUnlinked(p, unlinkedSearch) }}
+                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Anterior
+                </button>
+                <button
+                  disabled={unlinkedPage >= unlinkedTotalPages}
+                  onClick={() => { const p = unlinkedPage + 1; setUnlinkedPage(p); loadUnlinked(p, unlinkedSearch) }}
+                  className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Próxima →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div>

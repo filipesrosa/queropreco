@@ -49,7 +49,11 @@ export async function productsRoutes(app: FastifyInstance) {
     }
   )
 
-  app.get('/products/unlinked-groups', { preHandler: app.requireRole(['ADMIN']) }, async (_request, reply) => {
+  app.get<{ Querystring: { q?: string; page?: string; limit?: string } }>('/products/unlinked-groups', { preHandler: app.requireRole(['ADMIN']) }, async (request, reply) => {
+    const q = request.query.q?.trim().toUpperCase() ?? ''
+    const page = Math.max(1, parseInt(request.query.page ?? '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50', 10)))
+
     const items = await prisma.item.findMany({
       where: { productId: null },
       select: { description: true, createdAt: true },
@@ -73,11 +77,12 @@ export async function productsRoutes(app: FastifyInstance) {
       }
     }
 
-    const data = Array.from(groups.values())
-      .sort((a, b) => b.occurrences - a.occurrences)
-      .slice(0, 200)
+    const sorted = Array.from(groups.values()).sort((a, b) => b.occurrences - a.occurrences)
+    const filtered = q ? sorted.filter((g) => g.normalizedDescription.includes(q) || g.sampleDescription.toUpperCase().includes(q)) : sorted
+    const total = filtered.length
+    const data = filtered.slice((page - 1) * limit, page * limit)
 
-    return reply.send({ data })
+    return reply.send({ data, total, page, totalPages: Math.ceil(total / limit) })
   })
 
   app.post<{ Body: { normalizedDescription: string; productId: string } }>(
