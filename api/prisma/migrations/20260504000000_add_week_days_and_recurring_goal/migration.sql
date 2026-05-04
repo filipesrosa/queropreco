@@ -1,0 +1,2 @@
+ALTER TABLE "entities" ADD COLUMN "weekDays" INTEGER NOT NULL DEFAULT 7;
+ALTER TABLE "reading_goals" ADD COLUMN "recurring" BOOLEAN NOT NULL DEFAULT false;

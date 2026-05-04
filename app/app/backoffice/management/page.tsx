@@ -6,7 +6,7 @@ const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
 interface Entity {
   id: string; cnpj: string; name: string; address: string
-  phone?: string; notificationPhone?: string; active: boolean
+  phone?: string; notificationPhone?: string; weekDays: number; active: boolean
 }
 interface User {
   id: string; name: string; cpf: string; email: string
@@ -35,7 +35,7 @@ export default function ManagementPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [eForm, setEForm] = useState({ cnpj: '', name: '', address: '', phone: '', notificationPhone: '', logo: '' })
+  const [eForm, setEForm] = useState({ cnpj: '', name: '', address: '', phone: '', notificationPhone: '', logo: '', weekDays: 7 })
   const [eEditing, setEEditing] = useState<string | null>(null)
   const [eSaving, setESaving] = useState(false)
   const [eError, setEError] = useState('')
@@ -78,7 +78,7 @@ export default function ManagementPage() {
       const url = eEditing ? `${API}/entities/${eEditing}` : `${API}/entities`
       const res = await fetch(url, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(eForm) })
       if (!res.ok) { const d = await res.json(); setEError(d.error ?? 'Erro'); return }
-      setEForm({ cnpj: '', name: '', address: '', phone: '', notificationPhone: '', logo: '' })
+      setEForm({ cnpj: '', name: '', address: '', phone: '', notificationPhone: '', logo: '', weekDays: 7 })
       setEEditing(null); loadAll()
     } finally { setESaving(false) }
   }
@@ -165,6 +165,14 @@ export default function ManagementPage() {
                 />
               </div>
               <div>
+                <label className="block text-xs text-gray-500 mb-1">Dias por semana</label>
+                <select value={eForm.weekDays} onChange={(e) => setEForm((f) => ({ ...f, weekDays: Number(e.target.value) }))} className={inputCls}>
+                  <option value={5}>5 dias (Seg–Sex)</option>
+                  <option value={6}>6 dias (Seg–Sáb)</option>
+                  <option value={7}>7 dias (Seg–Dom)</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs text-gray-500 mb-1">Logotipo (máx. 1MB)</label>
                 <input type="file" accept="image/*" onChange={(e) => handleLogo(e.target.files?.[0])} className="text-sm" />
                 {eForm.logo && <p className="text-xs text-green-600 mt-1">Logo carregado</p>}
@@ -175,7 +183,7 @@ export default function ManagementPage() {
                 {eSaving ? 'Salvando...' : eEditing ? 'Salvar' : 'Criar'}
               </button>
               {eEditing && (
-                <button type="button" onClick={() => { setEEditing(null); setEForm({ cnpj: '', name: '', address: '', phone: '', notificationPhone: '', logo: '' }) }}
+                <button type="button" onClick={() => { setEEditing(null); setEForm({ cnpj: '', name: '', address: '', phone: '', notificationPhone: '', logo: '', weekDays: 7 }) }}
                   className={btnSecondary}>
                   Cancelar
                 </button>
@@ -192,6 +200,7 @@ export default function ManagementPage() {
                       <p className="font-medium text-gray-900">{en.name}</p>
                       <p className="text-xs font-mono text-gray-500 mt-0.5">{en.cnpj}</p>
                       {en.notificationPhone && <p className="text-xs text-gray-500 mt-0.5">WhatsApp: {en.notificationPhone}</p>}
+                      <p className="text-xs text-gray-400 mt-0.5">{en.weekDays ?? 7} dias/semana</p>
                     </div>
                     <span className={`text-xs px-2 py-1 rounded-full shrink-0 ${en.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {en.active ? 'Ativo' : 'Inativo'}
@@ -199,7 +208,7 @@ export default function ManagementPage() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setEEditing(en.id); setEForm({ cnpj: en.cnpj, name: en.name, address: en.address, phone: en.phone ?? '', notificationPhone: en.notificationPhone ?? '', logo: '' }) }}
+                      onClick={() => { setEEditing(en.id); setEForm({ cnpj: en.cnpj, name: en.name, address: en.address, phone: en.phone ?? '', notificationPhone: en.notificationPhone ?? '', logo: '', weekDays: en.weekDays ?? 7 }) }}
                       className="flex-1 py-2.5 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 font-medium text-sm">
                       Editar
                     </button>

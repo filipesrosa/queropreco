@@ -62,6 +62,26 @@ export async function billsRoutes(app: FastifyInstance) {
     })
   })
 
+  // GET /bills/pending-donations - list user_readings not yet donated to NFP (Chrome extension)
+  app.get<{ Querystring: { limit?: string } }>('/bills/pending-donations', async (request, reply) => {
+    const authHeader = request.headers['authorization']
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+    if (!token || token !== process.env.NFP_EXTENSION_TOKEN) {
+      return reply.status(401).send({ error: 'Unauthorized' })
+    }
+
+    const limitNum = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50') || 50))
+
+    const readings = await prisma.userReading.findMany({
+      where: { nfpDonatedAt: null },
+      select: { id: true, accessKey: true, createdAt: true },
+      orderBy: { createdAt: 'asc' },
+      take: limitNum,
+    })
+
+    return reply.send({ data: readings })
+  })
+
   // GET /bills/:id - get a single bill with all relations
   app.get<{ Params: { id: string } }>('/bills/:id', async (request, reply) => {
     const { id } = request.params

@@ -1,10 +1,11 @@
 import { FastifyInstance } from 'fastify'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { normalize } from '../lib/normalize.js'
 
-async function fetchItemRows(q: string) {
+function fetchItemRows(where: Prisma.ItemWhereInput) {
   return prisma.item.findMany({
-    where: { description: { contains: q, mode: 'insensitive' } },
+    where,
     include: {
       product: { select: { name: true } },
       bill: {
@@ -22,12 +23,12 @@ function rowDate(row: Awaited<ReturnType<typeof fetchItemRows>>[0]) {
 }
 
 export async function itemsRoutes(app: FastifyInstance) {
-  // GET /items/search?q= — search items, grouped by normalized description
+  // GET /items/search?q= — search items, grouped by product (when linked) or normalized description
   app.get<{ Querystring: { q?: string } }>('/items/search', async (request, reply) => {
     const q = (request.query.q ?? '').trim()
     if (q.length < 2) return reply.send({ data: [] })
 
-    const rows = await fetchItemRows(q)
+    const rows = await fetchItemRows({ description: { contains: q, mode: 'insensitive' } })
 
     type EstEntry = { name: string; cnpj: string; lastPrice: number; lastSeenAt: string }
     type Group = {
@@ -44,15 +45,16 @@ export async function itemsRoutes(app: FastifyInstance) {
     const groups = new Map<string, Group>()
 
     for (const item of rows) {
-      const key = normalize(item.description)
+      const key = item.productId ?? normalize(item.description)
+      const isProductKeyed = !!item.productId
       const price = Number(item.unitPrice)
       const seenAt = rowDate(item).toISOString()
 
       if (!groups.has(key)) {
         groups.set(key, {
           key,
-          description: item.description,
-          productName: item.product?.name ?? null,
+          description: isProductKeyed ? item.product!.name : item.description,
+          productName: isProductKeyed ? null : (item.product?.name ?? null),
           occurrences: 0,
           minPrice: price,
           maxPrice: price,
@@ -65,10 +67,9 @@ export async function itemsRoutes(app: FastifyInstance) {
       g.occurrences++
       if (price < g.minPrice) g.minPrice = price
       if (price > g.maxPrice) g.maxPrice = price
-      if (!g.productName && item.product?.name) g.productName = item.product.name
       if (seenAt > g.lastSeenAt) {
         g.lastSeenAt = seenAt
-        g.description = item.description
+        if (!isProductKeyed) g.description = item.description
       }
 
       const est = item.bill.establishment
@@ -88,15 +89,21 @@ export async function itemsRoutes(app: FastifyInstance) {
     return reply.send({ data })
   })
 
-  // GET /items/detail?key= — full history for a specific normalized description
+  // GET /items/detail?key= — full history for a normalized description or productId
   app.get<{ Querystring: { key?: string } }>('/items/detail', async (request, reply) => {
     const key = (request.query.key ?? '').trim()
     if (!key) return reply.send({ data: null })
 
-    // Use first significant word to narrow DB query, then filter in JS
-    const searchTerm = key.split(' ')[0]
-    const rows = await fetchItemRows(searchTerm)
-    const filtered = rows.filter((r) => normalize(r.description) === key)
+    // CUIDs are lowercase (productId); normalized descriptions are UPPERCASE with spaces
+    const isProductId = key !== key.toUpperCase()
+
+    const rows = isProductId
+      ? await fetchItemRows({ productId: key })
+      : await fetchItemRows({ description: { contains: key.split(' ')[0], mode: 'insensitive' } })
+
+    const filtered = isProductId
+      ? rows
+      : rows.filter((r) => normalize(r.description) === key)
 
     const history = filtered
       .map((item) => ({
@@ -127,8 +134,12 @@ export async function itemsRoutes(app: FastifyInstance) {
     return reply.send({
       data: {
         key,
-        description: filtered[0]?.description ?? key,
-        productName: filtered[0]?.product?.name ?? null,
+        description: isProductId
+          ? (filtered[0]?.product?.name ?? key)
+          : (filtered[0]?.description ?? key),
+        productName: isProductId
+          ? null
+          : (filtered[0]?.product?.name ?? null),
         history,
         byEstablishment,
       },

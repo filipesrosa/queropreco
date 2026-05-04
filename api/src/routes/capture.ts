@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
-import { fetchNFCe, decodeAccessKey, buildSefazConsultaUrl } from '../lib/nfce-parser.js'
+import { fetchNFCe, decodeAccessKey } from '../lib/nfce-parser.js'
 import { upsertBill } from '../lib/bill-upsert.js'
 import { lookupCnpj } from '../lib/cnpj-lookup.js'
 import type { NFCeReceipt } from '../types/nfce.js'
@@ -37,56 +37,23 @@ export async function captureRoutes(app: FastifyInstance) {
     }
   })
 
-  app.get<{ Params: { accesskey: string } }>('/accesskey/:accesskey', async (request, reply) => {
-    const { accesskey } = request.params
-    const digits = accesskey.replace(/\D/g, '')
+  app.post<{ Params: { accessKey: string } }>('/bills/nfp-update/:accessKey', async (request, reply) => {
+    const { accessKey } = request.params
+    const digits = accessKey.replace(/\D/g, '')
     if (digits.length !== 44) {
       return reply.status(400).send({ error: 'accessKey must be 44 digits' })
     }
 
-    try {
-      const sefazUrl = buildSefazConsultaUrl(digits)
-      if (sefazUrl) {
-        try {
-          const receipt = await enrichEstablishment(await fetchNFCe(sefazUrl))
-          const bill = await prisma.$transaction((tx) => upsertBill(tx, receipt))
-          return reply.status(201).send({ data: bill, receipt })
-        } catch (fetchErr) {
-          app.log.warn({ fetchErr }, 'SEFAZ fetch failed, falling back to key decode')
-        }
-      }
+    const result = await prisma.userReading.updateMany({
+      where: { accessKey: digits, nfpDonatedAt: null },
+      data: { nfpDonatedAt: new Date() },
+    })
 
-      const kd = decodeAccessKey(digits)
-      const now = new Date().toISOString()
-      const receipt: NFCeReceipt = {
-        establishment: { name: '', cnpj: kd.cnpj, address: '', website: '' },
-        invoice: {
-          number: kd.invoiceNumber,
-          series: kd.series,
-          issuedAt: kd.issuedAt ?? now,
-          capturedAt: now,
-          accessKey: kd.accessKey,
-          authorizationProtocol: '',
-          environment: 'Produção',
-          xmlVersion: '4.00',
-          xsltVersion: '2.05',
-          type: 'EMISSÃO NORMAL',
-          via: 'Consumidor',
-          consumer: 'Não identificado',
-          operator: '',
-        },
-        payment: { totalItems: 0, totalAmount: 0, amountPaid: 0, change: 0, method: 'Não especificado' },
-        taxes: { totalTaxes: 0, taxPercentage: 0, taxSource: 'IBPT', legalBasis: 'Lei Federal 12.741/2012' },
-        items: [],
-      }
-      const enriched = await enrichEstablishment(receipt)
-      const bill = await prisma.$transaction((tx) => upsertBill(tx, enriched))
-      return reply.status(201).send({ data: bill, receipt: enriched })
-    } catch (error) {
-      app.log.error(error)
-      const message = error instanceof Error ? error.message : 'Failed to capture bill'
-      return reply.status(502).send({ error: message })
+    if (result.count === 0) {
+      return reply.status(404).send({ error: 'No pending readings found for this accessKey' })
     }
+
+    return reply.status(200).send({ updated: result.count })
   })
 
   app.post<{ Body: { accessKey: string } }>('/bills/barcode', async (request, reply) => {

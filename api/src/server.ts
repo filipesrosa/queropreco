@@ -14,6 +14,7 @@ import { entitiesRoutes } from './routes/entities.js'
 import { usersRoutes } from './routes/users.js'
 import { backofficeRoutes } from './routes/backoffice.js'
 import { productsRoutes } from './routes/products.js'
+import { establishmentsRoutes } from './routes/establishments.js'
 
 const app = Fastify({
   logger: {
@@ -81,6 +82,7 @@ async function bootstrap() {
   await app.register(campoRoutes)
   await app.register(randomValuesRoutes)
   await app.register(compareRoutes)
+  await app.register(establishmentsRoutes)
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? '0.0.0.0'

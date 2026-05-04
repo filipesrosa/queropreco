@@ -38,12 +38,9 @@ async function triggerGoalNotification(userId: string, entityId: string) {
     })
     if (!goal || goal.notifiedAt || !goal.entity.notificationPhone) return
 
+    const weekEnd = new Date(weekStart.getTime() + goal.entity.weekDays * 86_400_000)
     const count = await prisma.userReading.count({
-      where: {
-        userId,
-        entityId,
-        createdAt: { gte: weekStart, lt: new Date(weekStart.getTime() + 7 * 86_400_000) },
-      },
+      where: { userId, entityId, createdAt: { gte: weekStart, lt: weekEnd } },
     })
     if (count < goal.target) return
 
@@ -283,7 +280,7 @@ export async function backofficeRoutes(app: FastifyInstance) {
     preHandler: app.requireRole(['ADMIN', 'ENTITY_ADMIN']),
   }, async (request, reply) => {
     const me = request.user as JWTUser
-    const body = request.body as { userId: string; weekStart: string; target: number }
+    const body = request.body as { userId: string; weekStart: string; target: number; recurring?: boolean }
 
     if (!body.userId || !body.weekStart || !body.target) {
       return reply.status(400).send({ error: 'userId, weekStart and target are required' })
@@ -297,11 +294,12 @@ export async function backofficeRoutes(app: FastifyInstance) {
 
     const weekStart = parseWeekStart(body.weekStart)
     const entityId = targetUser.entityId!
+    const recurring = body.recurring ?? false
 
     const goal = await prisma.readingGoal.upsert({
       where: { userId_weekStart: { userId: body.userId, weekStart } },
-      update: { target: body.target, createdBy: me.id },
-      create: { userId: body.userId, entityId, weekStart, target: body.target, createdBy: me.id },
+      update: { target: body.target, recurring, createdBy: me.id },
+      create: { userId: body.userId, entityId, weekStart, target: body.target, recurring, createdBy: me.id },
     })
     return reply.status(201).send(goal)
   })
@@ -317,34 +315,65 @@ export async function backofficeRoutes(app: FastifyInstance) {
 
     const resolvedEntityId = me.role === 'ENTITY_ADMIN' ? me.entityId : qEntityId
     const weekStart = qWeekStart ? parseWeekStart(qWeekStart) : currentWeekStart()
-    const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000)
 
     const where: any = { weekStart }
     if (resolvedEntityId) where.entityId = resolvedEntityId
 
     const goals = await prisma.readingGoal.findMany({
       where,
-      include: { user: { select: { name: true, cpf: true } } },
+      include: {
+        user: { select: { name: true, cpf: true } },
+        entity: { select: { weekDays: true } },
+      },
     })
 
     const withProgress = await Promise.all(
       goals.map(async (g) => {
+        const weekEnd = new Date(weekStart.getTime() + g.entity.weekDays * 86_400_000)
         const count = await prisma.userReading.count({
-          where: {
-            userId: g.userId,
-            entityId: g.entityId,
-            createdAt: { gte: weekStart, lt: weekEnd },
-          },
+          where: { userId: g.userId, entityId: g.entityId, createdAt: { gte: weekStart, lt: weekEnd } },
         })
-        return {
-          ...g,
-          current: count,
-          goalPercent: Math.round((count / g.target) * 100),
-        }
+        return { ...g, current: count, goalPercent: Math.round((count / g.target) * 100), inherited: false }
       }),
     )
 
-    return withProgress
+    // For readers in the entity without an explicit goal, fall back to latest recurring
+    if (!resolvedEntityId) return withProgress
+
+    const explicitUserIds = new Set(goals.map((g) => g.userId))
+    const readersWithoutGoal = await prisma.user.findMany({
+      where: { entityId: resolvedEntityId, role: 'READER', active: true, id: { notIn: [...explicitUserIds] } },
+      select: { id: true, name: true, cpf: true },
+    })
+
+    const entityWeekDays = goals[0]?.entity.weekDays
+      ?? (await prisma.entity.findUnique({ where: { id: resolvedEntityId }, select: { weekDays: true } }))?.weekDays
+      ?? 7
+    const weekEnd = new Date(weekStart.getTime() + entityWeekDays * 86_400_000)
+
+    const inherited = (await Promise.all(
+      readersWithoutGoal.map(async (r) => {
+        const recurring = await prisma.readingGoal.findFirst({
+          where: { userId: r.id, recurring: true, weekStart: { lt: weekStart } },
+          orderBy: { weekStart: 'desc' },
+        })
+        if (!recurring) return null
+        const count = await prisma.userReading.count({
+          where: { userId: r.id, entityId: resolvedEntityId, createdAt: { gte: weekStart, lt: weekEnd } },
+        })
+        return {
+          ...recurring,
+          weekStart,
+          user: { name: r.name, cpf: r.cpf },
+          entity: { weekDays: entityWeekDays },
+          current: count,
+          goalPercent: Math.round((count / recurring.target) * 100),
+          inherited: true,
+        }
+      }),
+    )).filter(Boolean)
+
+    return [...withProgress, ...inherited]
   })
 
   // ── PUT /backoffice/goals/:id ─────────────────────────────────────────────
@@ -354,26 +383,28 @@ export async function backofficeRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const me = request.user as JWTUser
     const { id } = request.params as { id: string }
-    const { target } = request.body as { target: number }
+    const { target, recurring } = request.body as { target: number; recurring?: boolean }
 
-    const goal = await prisma.readingGoal.findUnique({ where: { id } })
+    const goal = await prisma.readingGoal.findUnique({
+      where: { id },
+      include: { entity: { select: { weekDays: true } } },
+    })
     if (!goal) return reply.status(404).send({ error: 'Not found' })
     if (me.role === 'ENTITY_ADMIN' && goal.entityId !== me.entityId) {
       return reply.status(403).send({ error: 'Forbidden' })
     }
 
     const weekStart = goal.weekStart
-    const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000)
+    const weekEnd = new Date(weekStart.getTime() + goal.entity.weekDays * 86_400_000)
     const currentCount = await prisma.userReading.count({
       where: { userId: goal.userId, entityId: goal.entityId, createdAt: { gte: weekStart, lt: weekEnd } },
     })
 
-    // Reset notification if new target is above current progress
     const notifiedAt = goal.notifiedAt && target > currentCount ? null : goal.notifiedAt
 
     const updated = await prisma.readingGoal.update({
       where: { id },
-      data: { target, notifiedAt },
+      data: { target, notifiedAt, ...(recurring !== undefined ? { recurring } : {}) },
     })
     return updated
   })
@@ -383,16 +414,26 @@ export async function backofficeRoutes(app: FastifyInstance) {
   app.get('/backoffice/my-goal', { preHandler: app.verifyJwt }, async (request) => {
     const me = request.user as JWTUser
     const weekStart = currentWeekStart()
-    const weekEnd = new Date(weekStart.getTime() + 7 * 86_400_000)
 
-    const [goal, count] = await Promise.all([
-      prisma.readingGoal.findUnique({
-        where: { userId_weekStart: { userId: me.id, weekStart } },
-      }),
-      prisma.userReading.count({
-        where: { userId: me.id, createdAt: { gte: weekStart, lt: weekEnd } },
-      }),
-    ])
+    const entity = me.entityId
+      ? await prisma.entity.findUnique({ where: { id: me.entityId }, select: { weekDays: true } })
+      : null
+    const weekEnd = new Date(weekStart.getTime() + (entity?.weekDays ?? 7) * 86_400_000)
+
+    let goal = await prisma.readingGoal.findUnique({
+      where: { userId_weekStart: { userId: me.id, weekStart } },
+    })
+
+    if (!goal) {
+      goal = await prisma.readingGoal.findFirst({
+        where: { userId: me.id, recurring: true, weekStart: { lt: weekStart } },
+        orderBy: { weekStart: 'desc' },
+      })
+    }
+
+    const count = await prisma.userReading.count({
+      where: { userId: me.id, createdAt: { gte: weekStart, lt: weekEnd } },
+    })
 
     return {
       target: goal?.target ?? null,
@@ -400,5 +441,39 @@ export async function backofficeRoutes(app: FastifyInstance) {
       goalPercent: goal ? Math.round((count / goal.target) * 100) : null,
       weekStart: weekStart.toISOString().slice(0, 10),
     }
+  })
+
+  // ── GET /backoffice/entity-config ─────────────────────────────────────────
+
+  app.get('/backoffice/entity-config', {
+    preHandler: app.requireRole(['ADMIN', 'ENTITY_ADMIN']),
+  }, async (request, reply) => {
+    const me = request.user as JWTUser
+    const { entityId: qEntityId } = request.query as { entityId?: string }
+    const resolvedId = me.role === 'ENTITY_ADMIN' ? me.entityId! : qEntityId
+    if (!resolvedId) return reply.status(400).send({ error: 'entityId required' })
+
+    const entity = await prisma.entity.findUnique({ where: { id: resolvedId }, select: { weekDays: true } })
+    if (!entity) return reply.status(404).send({ error: 'Not found' })
+    return entity
+  })
+
+  // ── PUT /backoffice/entity-config ─────────────────────────────────────────
+
+  app.put('/backoffice/entity-config', {
+    preHandler: app.requireRole(['ADMIN', 'ENTITY_ADMIN']),
+  }, async (request, reply) => {
+    const me = request.user as JWTUser
+    const body = request.body as { weekDays: number; entityId?: string }
+    const resolvedId = me.role === 'ENTITY_ADMIN' ? me.entityId! : body.entityId
+    if (!resolvedId) return reply.status(400).send({ error: 'entityId required' })
+
+    const weekDays = Number(body.weekDays)
+    if (![5, 6, 7].includes(weekDays)) {
+      return reply.status(400).send({ error: 'weekDays must be 5, 6 or 7' })
+    }
+
+    const entity = await prisma.entity.update({ where: { id: resolvedId }, data: { weekDays } })
+    return { weekDays: entity.weekDays }
   })
 }

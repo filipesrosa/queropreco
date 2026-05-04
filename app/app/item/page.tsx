@@ -198,6 +198,7 @@ function ItemContent() {
                             <p className="text-sm font-medium text-ink truncate">{record.establishment.name}</p>
                             <TrendIcon trend={trend} />
                           </div>
+                          <p className="text-[11px] text-ink/40 truncate leading-snug">{record.description}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
                             <p className="text-xs text-ink/40">{daysLabel(record.issuedAt)}</p>
                             {stale && (
@@ -247,6 +248,7 @@ function ItemContent() {
                 <li key={record.id} className="px-4 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm text-ink truncate">{record.establishment.name}</p>
+                    <p className="text-[11px] text-ink/40 truncate leading-snug">{record.description}</p>
                     <p className="text-xs text-ink/40 mt-0.5">{fmtDate(record.issuedAt)}</p>
                   </div>
                   <div className="text-right shrink-0">

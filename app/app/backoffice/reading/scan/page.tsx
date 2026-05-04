@@ -66,7 +66,7 @@ export default function BackofficeScanPage() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3">
-        <Link href="/backoffice/reading" className="text-gray-500 hover:text-gray-800">← Voltar</Link>
+        <Link href="/backoffice/reading" className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 text-sm font-medium">← Voltar</Link>
         <h1 className="text-xl font-semibold text-gray-900">Escanear QR Code</h1>
       </div>
 

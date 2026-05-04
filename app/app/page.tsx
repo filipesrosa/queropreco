@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import logo from '../assets/images/quero-preco.png'
+import logo from '../assets/images/quero-preco-logo.png'
 
 export default function Home() {
   return (
@@ -46,11 +46,11 @@ export default function Home() {
           >
             <div className="w-12 h-12 rounded-xl bg-brand-light flex items-center justify-center shrink-0 group-hover:bg-brand/15 transition-colors">
               <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4h2v16H3V4zm4 0h1v16H7V4zm3 0h2v16h-2V4zm4 0h1v16h-1V4zm3 0h2v16h-2V4zm4 0h1v16h-1V4z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-ink">Código de barras</p>
+              <p className="font-semibold text-ink">Chave de acesso</p>
               <p className="text-sm text-ink/45 mt-0.5">Digite os 44 dígitos da nota</p>
             </div>
             <svg className="w-5 h-5 text-ink/20 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -69,7 +69,7 @@ export default function Home() {
           >
             <div className="w-12 h-12 rounded-xl bg-brand-light flex items-center justify-center shrink-0 group-hover:bg-brand/15 transition-colors">
               <svg className="w-6 h-6 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
@@ -90,7 +90,7 @@ export default function Home() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-semibold text-ink">Dashboard cross-loja</p>
+              <p className="font-semibold text-ink">Comparativo de Preços</p>
               <p className="text-sm text-ink/45 mt-0.5">Compare preços entre estabelecimentos</p>
             </div>
             <svg className="w-5 h-5 text-ink/20 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
