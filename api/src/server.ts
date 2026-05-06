@@ -7,6 +7,7 @@ import { itemsRoutes } from './routes/items.js'
 import { campoRoutes } from './routes/campo.js'
 import { randomValuesRoutes } from './routes/random-values.js'
 import { compareRoutes } from './routes/compare.js'
+import { homeRoutes } from './routes/home.js'
 import { prisma } from './lib/prisma.js'
 import authPlugin from './lib/auth.js'
 import { authRoutes } from './routes/auth.js'
@@ -15,6 +16,9 @@ import { usersRoutes } from './routes/users.js'
 import { backofficeRoutes } from './routes/backoffice.js'
 import { productsRoutes } from './routes/products.js'
 import { establishmentsRoutes } from './routes/establishments.js'
+import { startScrapingWorker } from './lib/scraping-queue.js'
+import { startPgListener } from './lib/pg-notify.js'
+import { streamsRoutes } from './routes/streams.js'
 
 const app = Fastify({
   logger: {
@@ -82,7 +86,12 @@ async function bootstrap() {
   await app.register(campoRoutes)
   await app.register(randomValuesRoutes)
   await app.register(compareRoutes)
+  await app.register(homeRoutes)
   await app.register(establishmentsRoutes)
+  await app.register(streamsRoutes)
+
+  startScrapingWorker()
+  await startPgListener()
 
   const port = Number(process.env.PORT ?? 3001)
   const host = process.env.HOST ?? '0.0.0.0'

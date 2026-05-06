@@ -47,6 +47,35 @@ export async function authRoutes(app: FastifyInstance) {
     return { user: request.user }
   })
 
+  app.post('/auth/change-password', { preHandler: app.verifyJwt }, async (request, reply) => {
+    const { currentPassword, newPassword } = request.body as {
+      currentPassword: string
+      newPassword: string
+    }
+
+    if (!currentPassword || !newPassword) {
+      return reply.status(400).send({ error: 'currentPassword e newPassword são obrigatórios' })
+    }
+    if (newPassword.length < 8) {
+      return reply.status(400).send({ error: 'Nova senha deve ter no mínimo 8 caracteres' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: request.user.id } })
+    if (!user || !user.active) {
+      return reply.status(401).send({ error: 'Usuário não encontrado' })
+    }
+
+    const valid = await bcrypt.compare(currentPassword, user.password)
+    if (!valid) {
+      return reply.status(401).send({ error: 'Senha atual incorreta' })
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10)
+    await prisma.user.update({ where: { id: user.id }, data: { password: hashed } })
+
+    return { ok: true }
+  })
+
   app.post('/auth/logout', async (_request, reply) => {
     const cookieDomain = process.env.COOKIE_DOMAIN ?? undefined
     reply

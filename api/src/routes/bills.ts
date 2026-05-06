@@ -70,7 +70,7 @@ export async function billsRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Unauthorized' })
     }
 
-    const limitNum = Math.min(100, Math.max(1, parseInt(request.query.limit ?? '50') || 50))
+    const limitNum = Math.min(500, Math.max(1, parseInt(request.query.limit ?? '500') || 500))
 
     const readings = await prisma.userReading.findMany({
       where: { nfpDonatedAt: null },

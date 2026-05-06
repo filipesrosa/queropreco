@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useSSE } from '../../hooks/useSSE'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 
@@ -9,6 +10,7 @@ interface Reading {
   id: string
   accessKey: string
   readerName: string | null
+  device: 'mobile' | 'desktop' | null
   createdAt: string
 }
 
@@ -54,6 +56,22 @@ function CopyKey({ accessKey }: { accessKey: string }) {
   )
 }
 
+function DeviceIcon({ device }: { device: 'mobile' | 'desktop' | null }) {
+  if (device === 'mobile') return (
+    <svg className="w-3.5 h-3.5 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-label="Mobile">
+      <rect x="7" y="2" width="10" height="20" rx="2" ry="2" />
+      <circle cx="12" cy="18" r="0.5" fill="currentColor" />
+    </svg>
+  )
+  if (device === 'desktop') return (
+    <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-label="Desktop">
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <path d="M8 21h8M12 17v4" />
+    </svg>
+  )
+  return null
+}
+
 export default function ReadingPage() {
   const [count, setCount] = useState<number | null>(null)
   const [readings, setReadings] = useState<Reading[]>([])
@@ -61,6 +79,7 @@ export default function ReadingPage() {
   const [expanded, setExpanded] = useState(false)
   const [role, setRole] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -86,6 +105,26 @@ export default function ReadingPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  useSSE(`${API}/backoffice/readings/stream`, (data) => {
+    try {
+      const reading: Reading = JSON.parse(data)
+      setCount((c) => (c ?? 0) + 1)
+      setReadings((prev) => [reading, ...prev])
+    } catch {}
+  })
+
+  async function deleteReading(id: string) {
+    if (!confirm('Excluir esta leitura permanentemente?')) return
+    setDeleting(id)
+    try {
+      await fetch(`${API}/backoffice/readings/${id}`, { method: 'DELETE', credentials: 'include' })
+      setReadings((prev) => prev.filter((r) => r.id !== id))
+      setCount((c) => (c != null ? c - 1 : c))
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const showReader = role === 'ENTITY_ADMIN' || role === 'ADMIN'
 
@@ -147,7 +186,9 @@ export default function ReadingPage() {
             <div className="px-4 py-2 bg-gray-50 flex items-center gap-3 text-xs font-medium text-gray-500 uppercase tracking-wide">
               <span className="w-20 shrink-0">Hora</span>
               <span className="flex-1">Chave de Acesso</span>
-              {showReader && <span className="w-28 text-right shrink-0">Leitor</span>}
+              <span className="w-6 shrink-0" />
+              {showReader && <span className="w-24 text-right shrink-0">Leitor</span>}
+              {role === 'ADMIN' && <span className="w-8 shrink-0" />}
             </div>
 
             {/* Rows */}
@@ -160,10 +201,23 @@ export default function ReadingPage() {
                   <div className="flex-1 min-w-0">
                     <CopyKey accessKey={r.accessKey} />
                   </div>
+                  <DeviceIcon device={r.device} />
                   {showReader && (
-                    <span className="w-28 text-right text-xs text-gray-500 truncate shrink-0">
+                    <span className="w-24 text-right text-xs text-gray-500 truncate shrink-0">
                       {r.readerName ?? '—'}
                     </span>
+                  )}
+                  {role === 'ADMIN' && (
+                    <button
+                      onClick={() => deleteReading(r.id)}
+                      disabled={deleting === r.id}
+                      className="w-8 flex justify-end text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40 shrink-0"
+                      title="Excluir leitura"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   )}
                 </li>
               ))}

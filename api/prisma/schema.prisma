@@ -17,6 +17,8 @@ model Establishment {
   cnpj      String   @unique
   address   String
   website   String?
+  latitude  Float?
+  longitude Float?
   bills     Bill[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -217,12 +219,19 @@ model UserReading {
   accessKey    String
   entityId     String?
   entity       Entity?   @relation(fields: [entityId], references: [id])
-  nfpDonatedAt DateTime?
-  createdAt    DateTime  @default(now())
+  device       String?
+  nfpDonatedAt   DateTime? @map("nfp_donated_at")
+  nfpStatus      String?   @map("nfp_status")
+  scrapeStatus   String    @default("pending") @map("scrape_status")
+  scrapeAttempts Int       @default(0)         @map("scrape_attempts")
+  scrapeError    String?                        @map("scrape_error")
+  scrapedAt      DateTime?                      @map("scraped_at")
+  createdAt      DateTime  @default(now())
 
   @@index([userId])
   @@index([entityId])
   @@index([createdAt])
+  @@index([scrapeStatus])
   @@map("user_readings")
   // partial unique index on (userId, accessKey) WHERE userId IS NOT NULL applied directly in DB
 }

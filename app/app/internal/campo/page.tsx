@@ -33,7 +33,7 @@ export default function CampoPage() {
     setErrorMsg(null)
 
     try {
-      const res = await fetch(`${API}/campo`, {
+      const res = await fetch(`${API}/internal/campo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ value: val, nome, cpf }),

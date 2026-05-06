@@ -28,7 +28,7 @@ function dayBoundsUTC(dateStr: string, tzOffset: string): { start: Date; end: Da
 export async function randomValuesRoutes(app: FastifyInstance) {
   app.get<{
     Querystring: { date?: string; timezone?: string }
-  }>('/campo/count', async (request, reply) => {
+  }>('/internal/campo/count', async (request, reply) => {
     const { date, timezone = '-03:00' } = request.query
 
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {

@@ -47,7 +47,7 @@ const IconTag = () => (
   </svg>
 )
 
-export default function NavLinks() {
+export default function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const [role, setRole] = useState<string | null>(null)
 
@@ -61,7 +61,8 @@ export default function NavLinks() {
       <Link
         key={href}
         href={href}
-        className={`flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full transition-all duration-150 ${
+        onClick={onNavigate}
+        className={`flex items-center gap-1.5 text-sm px-3 py-2 rounded-xl transition-all duration-150 ${
           active
             ? 'bg-blue-50 text-blue-600 font-medium'
             : 'text-gray-500 hover:text-gray-800 hover:bg-gray-50'
@@ -74,7 +75,7 @@ export default function NavLinks() {
   }
 
   return (
-    <nav className="flex items-center gap-0.5">
+    <nav className="flex md:flex-row flex-col md:items-center gap-0.5 md:gap-0.5">
       {link('/backoffice/reading', 'Leitura', <IconScan />)}
       {(role === 'ENTITY_ADMIN' || role === 'ADMIN') && link('/backoffice/reports', 'Relatórios', <IconChart />)}
       {role === 'ADMIN' && link('/backoffice/management', 'Gestão', <IconGear />)}

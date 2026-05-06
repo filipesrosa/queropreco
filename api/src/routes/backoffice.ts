@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { sendWhatsAppMessage } from '../lib/zapnit.js'
 import type { JWTUser } from '../lib/auth.js'
+import { addScrapingJob } from '../lib/scraping-queue.js'
 
 function currentWeekStart(): Date {
   const now = new Date()
@@ -111,6 +112,8 @@ export async function backofficeRoutes(app: FastifyInstance) {
       },
     })
 
+    addScrapingJob(reading.id, body.accessKey).catch(() => {})
+
     // Fire-and-forget goal notification for authenticated readers with entity
     if (userId && entityId) {
       triggerGoalNotification(userId, entityId)
@@ -169,7 +172,7 @@ export async function backofficeRoutes(app: FastifyInstance) {
 
     const readings = await prisma.userReading.findMany({
       where,
-      select: { id: true, accessKey: true, readerName: true, createdAt: true },
+      select: { id: true, accessKey: true, readerName: true, device: true, createdAt: true },
       orderBy: { createdAt: 'desc' },
     })
 
@@ -197,22 +200,95 @@ export async function backofficeRoutes(app: FastifyInstance) {
 
     const readings = await prisma.userReading.findMany({
       where,
-      select: { createdAt: true },
+      select: { createdAt: true, device: true },
       orderBy: { createdAt: 'asc' },
     })
 
-    // Aggregate by date
-    const byDate: Record<string, number> = {}
+    const byDate: Record<string, { total: number; mobile: number; desktop: number }> = {}
+    let totalMobile = 0, totalDesktop = 0
     for (const r of readings) {
       const d = r.createdAt.toISOString().slice(0, 10)
-      byDate[d] = (byDate[d] ?? 0) + 1
+      if (!byDate[d]) byDate[d] = { total: 0, mobile: 0, desktop: 0 }
+      byDate[d].total++
+      if (r.device === 'mobile') { byDate[d].mobile++; totalMobile++ }
+      else { byDate[d].desktop++; totalDesktop++ }
     }
 
     return {
       count: readings.length,
+      mobile: totalMobile,
+      desktop: totalDesktop,
       entityId: resolvedEntityId ?? null,
-      dates: Object.entries(byDate).map(([date, count]) => ({ date, count })),
+      dates: Object.entries(byDate).map(([date, v]) => ({ date, ...v })),
     }
+  })
+
+  // ── DELETE /backoffice/readings/:id ──────────────────────────────────────
+
+  app.delete('/backoffice/readings/:id', {
+    preHandler: app.requireRole(['ADMIN']),
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const reading = await prisma.userReading.findUnique({ where: { id } })
+    if (!reading) return reply.status(404).send({ error: 'Reading not found' })
+    await prisma.userReading.delete({ where: { id } })
+    return { ok: true }
+  })
+
+  // ── GET /backoffice/readings/donations ───────────────────────────────────
+
+  app.get('/backoffice/readings/donations', {
+    preHandler: app.requireRole(['ADMIN', 'ENTITY_ADMIN']),
+  }, async (request) => {
+    const me = request.user as JWTUser
+    const { entityId: qEntityId, from, to } =
+      request.query as { entityId?: string; from?: string; to?: string }
+
+    const resolvedEntityId = me.role === 'ENTITY_ADMIN' ? me.entityId : qEntityId
+
+    const dateFilter: any = {}
+    if (from) dateFilter.gte = new Date(from)
+    if (to) dateFilter.lte = new Date(to)
+
+    const baseWhere: any = {}
+    if (from || to) baseWhere.createdAt = dateFilter
+
+    // ENTITY_ADMIN or filtered by entityId: return single entity stats
+    if (resolvedEntityId) {
+      const where = { ...baseWhere, entityId: resolvedEntityId }
+      const [total, donated] = await Promise.all([
+        prisma.userReading.count({ where }),
+        prisma.userReading.count({ where: { ...where, nfpDonatedAt: { not: null } } }),
+      ])
+      const entity = await prisma.entity.findUnique({ where: { id: resolvedEntityId }, select: { name: true } })
+      return {
+        byEntity: [{ entityId: resolvedEntityId, entityName: entity?.name ?? resolvedEntityId, total, donated, pending: total - donated }],
+      }
+    }
+
+    // ADMIN: breakdown per entity + nulls (anonymous scans without entity)
+    const entities = await prisma.entity.findMany({ select: { id: true, name: true } })
+    const rows = await Promise.all(
+      entities.map(async (e) => {
+        const where = { ...baseWhere, entityId: e.id }
+        const [total, donated] = await Promise.all([
+          prisma.userReading.count({ where }),
+          prisma.userReading.count({ where: { ...where, nfpDonatedAt: { not: null } } }),
+        ])
+        return { entityId: e.id, entityName: e.name, total, donated, pending: total - donated }
+      })
+    )
+    // Include readings with no entity (anonymous public scans)
+    const noEntityWhere = { ...baseWhere, entityId: null }
+    const [totalAnon, donatedAnon] = await Promise.all([
+      prisma.userReading.count({ where: noEntityWhere }),
+      prisma.userReading.count({ where: { ...noEntityWhere, nfpDonatedAt: { not: null } } }),
+    ])
+    if (totalAnon > 0) {
+      rows.push({ entityId: null as any, entityName: 'Sem entidade', total: totalAnon, donated: donatedAnon, pending: totalAnon - donatedAnon })
+    }
+
+    return { byEntity: rows.filter((r) => r.total > 0) }
   })
 
   // ── GET /backoffice/reports/readers ───────────────────────────────────────

@@ -2,15 +2,31 @@ import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { fetchNFCe, decodeAccessKey } from '../lib/nfce-parser.js'
 import { upsertBill } from '../lib/bill-upsert.js'
-import { lookupCnpj } from '../lib/cnpj-lookup.js'
+import { enrichEstablishment } from '../lib/enrich.js'
+import { geocodeAddress } from '../lib/geocode.js'
 import type { NFCeReceipt } from '../types/nfce.js'
 
-async function enrichEstablishment(receipt: NFCeReceipt): Promise<NFCeReceipt> {
-  if (receipt.establishment.name || !receipt.establishment.cnpj) return receipt
-  const info = await lookupCnpj(receipt.establishment.cnpj)
-  if (!info) return receipt
-  return { ...receipt, establishment: { ...receipt.establishment, ...info } }
+function detectDevice(ua: string): 'mobile' | 'desktop' {
+  return /mobile|android|iphone|ipad|ipod|blackberry|windows phone/i.test(ua) ? 'mobile' : 'desktop'
 }
+
+async function recordAnonymousReading(accessKey: string, userAgent: string) {
+  if (!accessKey) return
+  const digits = accessKey.replace(/\D/g, '')
+  if (digits.length !== 44) return
+  const device = detectDevice(userAgent)
+  await prisma.userReading.create({ data: { accessKey: digits, device } })
+}
+
+async function maybeGeocodeEstablishment(establishmentId: string, address: string) {
+  if (!address) return
+  const est = await prisma.establishment.findUnique({ where: { id: establishmentId }, select: { latitude: true } })
+  if (est?.latitude != null) return
+  const coords = await geocodeAddress(address)
+  if (!coords) return
+  await prisma.establishment.update({ where: { id: establishmentId }, data: { latitude: coords.lat, longitude: coords.lng } })
+}
+
 
 export async function captureRoutes(app: FastifyInstance) {
   app.post<{ Body: { url: string } }>('/bills/capture', async (request, reply) => {
@@ -29,6 +45,8 @@ export async function captureRoutes(app: FastifyInstance) {
     try {
       const receipt = await enrichEstablishment(await fetchNFCe(url))
       const bill = await prisma.$transaction((tx) => upsertBill(tx, receipt))
+      setImmediate(() => maybeGeocodeEstablishment(bill.establishmentId, receipt.establishment.address).catch(() => {}))
+      setImmediate(() => recordAnonymousReading(receipt.invoice?.accessKey ?? '', request.headers['user-agent'] ?? '').catch(() => {}))
       return reply.status(201).send({ data: bill, receipt })
     } catch (error) {
       app.log.error(error)
@@ -37,16 +55,23 @@ export async function captureRoutes(app: FastifyInstance) {
     }
   })
 
-  app.post<{ Params: { accessKey: string } }>('/bills/nfp-update/:accessKey', async (request, reply) => {
+  const VALID_NFP_STATUSES = ['donated', 'already_exists', 'expired', 'error'] as const
+  type NfpStatus = typeof VALID_NFP_STATUSES[number]
+
+  app.post<{ Params: { accessKey: string }; Body: { nfpStatus?: string } }>('/bills/nfp-update/:accessKey', async (request, reply) => {
     const { accessKey } = request.params
     const digits = accessKey.replace(/\D/g, '')
     if (digits.length !== 44) {
       return reply.status(400).send({ error: 'accessKey must be 44 digits' })
     }
 
+    const nfpStatus: NfpStatus = VALID_NFP_STATUSES.includes(request.body?.nfpStatus as NfpStatus)
+      ? (request.body.nfpStatus as NfpStatus)
+      : 'error'
+
     const result = await prisma.userReading.updateMany({
       where: { accessKey: digits, nfpDonatedAt: null },
-      data: { nfpDonatedAt: new Date() },
+      data: { nfpDonatedAt: new Date(), nfpStatus },
     })
 
     if (result.count === 0) {
@@ -112,6 +137,8 @@ export async function captureRoutes(app: FastifyInstance) {
 
       const enriched = await enrichEstablishment(receipt)
       const bill = await prisma.$transaction((tx) => upsertBill(tx, enriched))
+      setImmediate(() => maybeGeocodeEstablishment(bill.establishmentId, enriched.establishment.address).catch(() => {}))
+      setImmediate(() => recordAnonymousReading(digits, request.headers['user-agent'] ?? '').catch(() => {}))
       return reply.status(201).send({ data: bill, receipt: enriched })
     } catch (error) {
       app.log.error(error)

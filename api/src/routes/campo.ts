@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 
 export async function campoRoutes(app: FastifyInstance) {
-  app.post<{ Body: { value: string; nome?: string; cpf?: string } }>('/campo', async (request, reply) => {
+  app.post<{ Body: { value: string; nome?: string; cpf?: string } }>('/internal/campo', async (request, reply) => {
     const { value, nome, cpf } = request.body
 
     if (typeof value !== 'string' || value.trim() === '') {

@@ -34,7 +34,7 @@ export default function CampoCountPage() {
 
     try {
       const tz = encodeURIComponent(localTimezone())
-      const res = await fetch(`${API}/campo/count?date=${date}&timezone=${tz}`)
+      const res = await fetch(`${API}/internal/campo/count?date=${date}&timezone=${tz}`)
       const data = await res.json()
 
       if (!res.ok) throw new Error(data.error ?? `Erro ${res.status}`)

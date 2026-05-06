@@ -27,6 +27,12 @@ services:
         condition: service_healthy
     restart: "no"
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
   api:
     build: ./api
     restart: unless-stopped
@@ -40,6 +46,7 @@ services:
       PORT: ${PORT:-3001}
       HOST: ${HOST:-0.0.0.0}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      NFP_EXTENSION_TOKEN: ${NFP_EXTENSION_TOKEN:-}
       NFP_USUARIO: ${NFP_USUARIO:-}
       NFP_SENHA: ${NFP_SENHA:-}
       NFP_CNPJ: ${NFP_CNPJ:-}
@@ -47,6 +54,7 @@ services:
       ZAPNIT_BASE_URL: ${ZAPNIT_BASE_URL:-}
       ZAPNIT_INSTANCE_ID: ${ZAPNIT_INSTANCE_ID:-}
       ZAPNIT_CLIENT_TOKEN: ${ZAPNIT_CLIENT_TOKEN:-}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -67,3 +75,4 @@ services:
 
 volumes:
   db_data:
+  redis_data:

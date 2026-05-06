@@ -1,8 +1,65 @@
 import { FastifyInstance } from 'fastify'
 import { prisma } from '../lib/prisma.js'
 import { normalize } from '../lib/normalize.js'
+import { geocodeAddress } from '../lib/geocode.js'
 
 export async function establishmentsRoutes(app: FastifyInstance) {
+  // GET /establishments/nearby — establishments sorted by distance
+  app.get<{ Querystring: { lat: string; lng: string; radiusKm?: string; limit?: string } }>(
+    '/establishments/nearby',
+    async (request, reply) => {
+      const lat = parseFloat(request.query.lat)
+      const lng = parseFloat(request.query.lng)
+      const radiusKm = parseFloat(request.query.radiusKm ?? '10')
+      const limit = Math.min(parseInt(request.query.limit ?? '20'), 50)
+
+      if (isNaN(lat) || isNaN(lng)) {
+        return reply.status(400).send({ error: 'lat e lng obrigatórios' })
+      }
+
+      type NearbyRow = {
+        id: string
+        name: string
+        cnpj: string
+        address: string
+        latitude: number
+        longitude: number
+        distance_km: number
+      }
+
+      const rows = await prisma.$queryRaw<NearbyRow[]>`
+        WITH distances AS (
+          SELECT id, name, cnpj, address, latitude, longitude,
+            (6371 * acos(
+              LEAST(1.0,
+                cos(radians(${lat})) * cos(radians(latitude))
+                * cos(radians(longitude) - radians(${lng}))
+                + sin(radians(${lat})) * sin(radians(latitude))
+              )
+            )) AS distance_km
+          FROM establishments
+          WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+        )
+        SELECT * FROM distances
+        WHERE distance_km <= ${radiusKm}
+        ORDER BY distance_km ASC
+        LIMIT ${limit}
+      `
+
+      const data = rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        cnpj: r.cnpj,
+        address: r.address,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        distanceKm: Number(r.distance_km),
+      }))
+
+      return reply.send({ data })
+    }
+  )
+
   // GET /establishments — list all establishments with at least one bill
   app.get('/establishments', async (_request, reply) => {
     const rows = await prisma.establishment.findMany({
