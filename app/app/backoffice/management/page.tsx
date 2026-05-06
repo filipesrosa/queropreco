@@ -9,7 +9,7 @@ interface Entity {
   phone?: string; notificationPhone?: string; weekDays: number; active: boolean
 }
 interface User {
-  id: string; name: string; cpf: string; email: string
+  id: string; name: string; cpf: string; email: string; phone?: string
   role: string; entityId: string | null; active: boolean
 }
 
@@ -293,7 +293,7 @@ export default function ManagementPage() {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => { setUEditing(u.id); setUForm({ name: u.name, cpf: u.cpf, email: u.email, phone: '', password: '', role: u.role, entityId: u.entityId ?? '' }) }}
+                        onClick={() => { setUEditing(u.id); setUForm({ name: u.name, cpf: u.cpf, email: u.email, phone: u.phone ?? '', password: '', role: u.role, entityId: u.entityId ?? '' }) }}
                         className="flex-1 py-2.5 bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 font-medium text-sm">
                         Editar
                       </button>

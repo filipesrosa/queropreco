@@ -37,7 +37,7 @@ async function triggerGoalNotification(userId: string, entityId: string) {
       where: { userId_weekStart: { userId, weekStart } },
       include: { entity: true, user: true },
     })
-    if (!goal || goal.notifiedAt || !goal.entity.notificationPhone) return
+    if (!goal || goal.notifiedAt) return
 
     const weekEnd = new Date(weekStart.getTime() + goal.entity.weekDays * 86_400_000)
     const count = await prisma.userReading.count({
@@ -45,10 +45,25 @@ async function triggerGoalNotification(userId: string, entityId: string) {
     })
     if (count < goal.target) return
 
-    await sendWhatsAppMessage(
-      goal.entity.notificationPhone,
-      `${goal.user.name} (CPF: ${goal.user.cpf}) atingiu a meta de leituras desta semana! 🎉`,
-    )
+    const message = `${goal.user.name} (CPF: ${goal.user.cpf}) atingiu a meta de leituras desta semana! 🎉`
+
+    const phones = new Set<string>()
+    if (goal.entity.notificationPhone) phones.add(goal.entity.notificationPhone)
+
+    const entityAdmins = await prisma.user.findMany({
+      where: { role: 'ENTITY_ADMIN', entityId, phone: { not: null }, active: true },
+      select: { phone: true },
+    })
+    const sysAdmins = await prisma.user.findMany({
+      where: { role: 'ADMIN', phone: { not: null }, active: true },
+      select: { phone: true },
+    })
+
+    for (const u of [...entityAdmins, ...sysAdmins]) {
+      if (u.phone) phones.add(u.phone)
+    }
+
+    await Promise.allSettled([...phones].map((phone) => sendWhatsAppMessage(phone, message)))
     await prisma.readingGoal.update({ where: { id: goal.id }, data: { notifiedAt: new Date() } })
   } catch {
     // notification failures are non-fatal

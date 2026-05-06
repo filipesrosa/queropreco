@@ -88,6 +88,8 @@ export async function usersRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const body = request.body as {
       name?: string
+      email?: string
+      cpf?: string
       phone?: string
       role?: string
       active?: boolean
@@ -104,7 +106,7 @@ export async function usersRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Cannot assign role above ENTITY_ADMIN' })
     }
 
-    const data: any = { name: body.name, phone: body.phone, active: body.active }
+    const data: any = { name: body.name, phone: body.phone, active: body.active, email: body.email, cpf: body.cpf }
     if (body.role) data.role = body.role
     if (me.role === 'ADMIN' && body.entityId !== undefined) data.entityId = body.entityId
     if (body.password) data.password = await bcrypt.hash(body.password, 10)
